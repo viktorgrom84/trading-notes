@@ -1,3 +1,4 @@
+import './config.js';
 import { sql } from '@vercel/postgres';
 
 // Initialize database tables

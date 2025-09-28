@@ -1,3 +1,4 @@
+import '../config.js';
 import { createUser, getUserByUsername } from '../db.js';
 import { hashPassword, generateToken } from '../auth.js';
 

@@ -1,3 +1,4 @@
+import '../config.js';
 import { getTradeById, updateTrade, deleteTrade } from '../db.js';
 import { verifyToken, getTokenFromRequest } from '../auth.js';
 

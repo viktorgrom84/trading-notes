@@ -1,3 +1,4 @@
+import './config.js';
 import { initDatabase } from './db.js';
 
 export default async function handler(req, res) {
