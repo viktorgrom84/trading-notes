@@ -1,4 +1,3 @@
-import '../config.js';
 import { getUserByUsername } from '../db.js';
 import { comparePassword, generateToken } from '../auth.js';
 

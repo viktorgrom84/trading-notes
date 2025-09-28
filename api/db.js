@@ -1,14 +1,8 @@
-import './config.js';
 import { createClient } from '@vercel/postgres';
-
-// Get the connection string
-const getConnectionString = () => {
-  return process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL;
-};
 
 // Initialize database tables
 export async function initDatabase() {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     
@@ -51,7 +45,7 @@ export async function initDatabase() {
 
 // User operations
 export async function createUser(username, passwordHash) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const result = await client.sql`
@@ -66,7 +60,7 @@ export async function createUser(username, passwordHash) {
 }
 
 export async function getUserByUsername(username) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const result = await client.sql`
@@ -79,7 +73,7 @@ export async function getUserByUsername(username) {
 }
 
 export async function getUserById(id) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const result = await client.sql`
@@ -93,7 +87,7 @@ export async function getUserById(id) {
 
 // Trade operations
 export async function getTradesByUserId(userId) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const result = await client.sql`
@@ -108,7 +102,7 @@ export async function getTradesByUserId(userId) {
 }
 
 export async function createTrade(userId, tradeData) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = tradeData;
@@ -125,7 +119,7 @@ export async function createTrade(userId, tradeData) {
 }
 
 export async function updateTrade(tradeId, userId, tradeData) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = tradeData;
@@ -145,7 +139,7 @@ export async function updateTrade(tradeId, userId, tradeData) {
 }
 
 export async function deleteTrade(tradeId, userId) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const result = await client.sql`
@@ -160,7 +154,7 @@ export async function deleteTrade(tradeId, userId) {
 }
 
 export async function getTradeById(tradeId, userId) {
-  const client = createClient({ connectionString: getConnectionString() });
+  const client = createClient();
   try {
     await client.connect();
     const result = await client.sql`

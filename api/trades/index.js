@@ -1,4 +1,3 @@
-import '../config.js';
 import { getTradesByUserId, createTrade } from '../db.js';
 import { verifyToken, getTokenFromRequest } from '../auth.js';
 
