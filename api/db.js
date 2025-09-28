@@ -1,5 +1,24 @@
 import { sql } from '@vercel/postgres';
 
+// Convert direct connection string to pooled connection string
+const getPooledConnectionString = () => {
+  const directUrl = process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL;
+  if (directUrl && directUrl.includes('@db.prisma.io')) {
+    // Convert Prisma direct connection to Vercel Postgres pooled format
+    const url = new URL(directUrl);
+    return `postgres://${url.username}:${url.password}@${url.hostname}:${url.port || 5432}/${url.pathname.slice(1)}?sslmode=require&pgbouncer=true`;
+  }
+  return directUrl;
+};
+
+// Override the connection string for sql helper
+if (typeof process !== 'undefined' && process.env) {
+  const pooledUrl = getPooledConnectionString();
+  if (pooledUrl) {
+    process.env.POSTGRES_URL = pooledUrl;
+  }
+}
+
 // Initialize database tables
 export async function initDatabase() {
   try {
