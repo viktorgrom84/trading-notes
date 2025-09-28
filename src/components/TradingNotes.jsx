@@ -1,22 +1,71 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Search, Filter } from 'lucide-react'
+import { 
+  Container, 
+  Paper, 
+  TextInput, 
+  NumberInput, 
+  Button, 
+  Title, 
+  Text, 
+  Group, 
+  Stack,
+  Table,
+  ActionIcon,
+  Badge,
+  Modal,
+  Textarea,
+  Grid,
+  Card,
+  Center,
+  ThemeIcon,
+  Menu,
+  Drawer,
+  ScrollArea,
+  Divider,
+  Skeleton
+} from '@mantine/core'
+import { 
+  IconPlus, 
+  IconEdit, 
+  IconTrash, 
+  IconSearch, 
+  IconFilter,
+  IconBook,
+  IconCalendar,
+  IconCurrencyDollar,
+  IconTrendingUp,
+  IconTrendingDown,
+  IconMinus
+} from '@tabler/icons-react'
+import { useForm } from '@mantine/form'
+import { useDisclosure } from '@mantine/hooks'
+import { notifications } from '@mantine/notifications'
 import apiClient from '../api'
 
 const TradingNotes = () => {
   const [trades, setTrades] = useState([])
-  const [showForm, setShowForm] = useState(false)
-  const [editingTrade, setEditingTrade] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [loading, setLoading] = useState(true)
-  const [formData, setFormData] = useState({
-    symbol: '',
-    shares: '',
-    buyPrice: '',
-    buyDate: '',
-    sellPrice: '',
-    sellDate: '',
-    notes: ''
+  const [opened, { open, close }] = useDisclosure(false)
+  const [editingTrade, setEditingTrade] = useState(null)
+
+  const form = useForm({
+    initialValues: {
+      symbol: '',
+      shares: 0,
+      buyPrice: 0,
+      buyDate: '',
+      sellPrice: '',
+      sellDate: '',
+      notes: ''
+    },
+    validate: {
+      symbol: (value) => (!value ? 'Symbol is required' : null),
+      shares: (value) => (value <= 0 ? 'Shares must be greater than 0' : null),
+      buyPrice: (value) => (value <= 0 ? 'Buy price must be greater than 0' : null),
+      buyDate: (value) => (!value ? 'Buy date is required' : null),
+    },
   })
 
   useEffect(() => {
@@ -30,88 +79,88 @@ const TradingNotes = () => {
       setTrades(trades)
     } catch (error) {
       console.error('Error loading trades:', error)
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to load trades',
+        color: 'red',
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (!formData.symbol || !formData.shares || !formData.buyPrice || !formData.buyDate) {
-      alert('Please fill in all required fields')
-      return
-    }
-
+  const handleSubmit = async (values) => {
     try {
       const tradeData = {
-        symbol: formData.symbol,
-        shares: parseInt(formData.shares),
-        buyPrice: parseFloat(formData.buyPrice),
-        sellPrice: formData.sellPrice ? parseFloat(formData.sellPrice) : null,
-        buyDate: formData.buyDate,
-        sellDate: formData.sellDate || null,
-        notes: formData.notes || null
+        symbol: values.symbol.toUpperCase(),
+        shares: parseInt(values.shares),
+        buyPrice: parseFloat(values.buyPrice),
+        sellPrice: values.sellPrice ? parseFloat(values.sellPrice) : null,
+        buyDate: values.buyDate,
+        sellDate: values.sellDate || null,
+        notes: values.notes || null
       }
 
       if (editingTrade) {
         await apiClient.updateTrade(editingTrade.id, tradeData)
+        notifications.show({
+          title: 'Success',
+          message: 'Trade updated successfully',
+          color: 'green',
+        })
       } else {
         await apiClient.createTrade(tradeData)
+        notifications.show({
+          title: 'Success',
+          message: 'Trade added successfully',
+          color: 'green',
+        })
       }
 
-      await loadTrades() // Reload trades from API
-      resetForm()
+      await loadTrades()
+      close()
+      form.reset()
+      setEditingTrade(null)
     } catch (error) {
       console.error('Error saving trade:', error)
-      alert('Error saving trade. Please try again.')
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to save trade',
+        color: 'red',
+      })
     }
-  }
-
-  const resetForm = () => {
-    setFormData({
-      symbol: '',
-      shares: '',
-      buyPrice: '',
-      buyDate: '',
-      sellPrice: '',
-      sellDate: '',
-      notes: ''
-    })
-    setShowForm(false)
-    setEditingTrade(null)
   }
 
   const handleEdit = (trade) => {
     setEditingTrade(trade)
-    setFormData({
+    form.setValues({
       symbol: trade.symbol,
-      shares: trade.shares.toString(),
-      buyPrice: trade.buy_price.toString(),
+      shares: trade.shares,
+      buyPrice: trade.buy_price,
       buyDate: trade.buy_date,
-      sellPrice: trade.sell_price ? trade.sell_price.toString() : '',
+      sellPrice: trade.sell_price || '',
       sellDate: trade.sell_date || '',
       notes: trade.notes || ''
     })
-    setShowForm(true)
+    open()
   }
 
   const handleDelete = async (tradeId) => {
-    if (window.confirm('Are you sure you want to delete this trade?')) {
-      try {
-        await apiClient.deleteTrade(tradeId)
-        await loadTrades() // Reload trades from API
-      } catch (error) {
-        console.error('Error deleting trade:', error)
-        alert('Error deleting trade. Please try again.')
-      }
+    try {
+      await apiClient.deleteTrade(tradeId)
+      notifications.show({
+        title: 'Success',
+        message: 'Trade deleted successfully',
+        color: 'green',
+      })
+      await loadTrades()
+    } catch (error) {
+      console.error('Error deleting trade:', error)
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to delete trade',
+        color: 'red',
+      })
     }
   }
 
@@ -132,8 +181,14 @@ const TradingNotes = () => {
   }
 
   const getProfitColor = (profit) => {
-    if (profit === null) return 'text-gray-500'
-    return profit >= 0 ? 'text-green' : 'text-red'
+    if (profit === null) return 'gray'
+    return profit > 0 ? 'green' : profit < 0 ? 'red' : 'gray'
+  }
+
+  const getProfitIcon = (profit) => {
+    if (profit > 0) return <IconTrendingUp size={16} />
+    if (profit < 0) return <IconTrendingDown size={16} />
+    return <IconMinus size={16} />
   }
 
   const getStatus = (trade) => {
@@ -147,274 +202,274 @@ const TradingNotes = () => {
     return matchesSearch && matchesFilter
   })
 
+  const rows = filteredTrades.map((trade) => {
+    const profit = getProfit(trade)
+    const status = getStatus(trade)
+    
+    return (
+      <Table.Tr key={trade.id}>
+        <Table.Td>
+          <Group gap="sm">
+            <Text fw={600}>{trade.symbol}</Text>
+            <Badge 
+              color={status === 'open' ? 'blue' : 'gray'}
+              variant="light"
+              size="sm"
+            >
+              {status === 'open' ? 'Open' : 'Closed'}
+            </Badge>
+          </Group>
+        </Table.Td>
+        <Table.Td>{trade.shares}</Table.Td>
+        <Table.Td>{formatCurrency(trade.buy_price)}</Table.Td>
+        <Table.Td>{formatDate(trade.buy_date)}</Table.Td>
+        <Table.Td>
+          {trade.sell_price ? formatCurrency(trade.sell_price) : '-'}
+        </Table.Td>
+        <Table.Td>
+          {trade.sell_date ? formatDate(trade.sell_date) : '-'}
+        </Table.Td>
+        <Table.Td>
+          {profit !== null ? (
+            <Group gap="xs">
+              <ActionIcon size="sm" color={getProfitColor(profit)} variant="light">
+                {getProfitIcon(profit)}
+              </ActionIcon>
+              <Text fw={500} c={getProfitColor(profit)}>
+                {formatCurrency(profit)}
+              </Text>
+            </Group>
+          ) : (
+            <Text c="dimmed" size="sm">Open</Text>
+          )}
+        </Table.Td>
+        <Table.Td>
+          <Group gap="xs">
+            <ActionIcon
+              variant="subtle"
+              color="blue"
+              onClick={() => handleEdit(trade)}
+            >
+              <IconEdit size={16} />
+            </ActionIcon>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              onClick={() => handleDelete(trade.id)}
+            >
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Group>
+        </Table.Td>
+      </Table.Tr>
+    )
+  })
+
   if (loading) {
     return (
-      <div className="container py-6">
-        <div className="text-center">
-          <div className="text-lg text-gray-600">Loading trades...</div>
-        </div>
-      </div>
+      <Container size="xl" py="xl">
+        <Stack gap="xl">
+          <div>
+            <Skeleton height={32} width={300} mb="sm" />
+            <Skeleton height={20} width={400} />
+          </div>
+          <Skeleton height={400} />
+        </Stack>
+      </Container>
     )
   }
 
   return (
-    <div className="container py-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Trading Notes</h1>
-          <p className="text-gray-600">Manage your trading positions and track performance</p>
-        </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="btn btn-primary mt-4 md:mt-0"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Trade
-        </button>
-      </div>
+    <Container size="xl" py="xl">
+      <Stack gap="xl">
+        {/* Header */}
+        <Group justify="space-between">
+          <div>
+            <Title order={1} mb="sm">Trading Notes</Title>
+            <Text c="dimmed" size="lg">Manage your trading positions and track performance</Text>
+          </div>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              setEditingTrade(null)
+              form.reset()
+              open()
+            }}
+            variant="gradient"
+            gradient={{ from: 'blue', to: 'purple' }}
+            size="md"
+          >
+            Add Trade
+          </Button>
+        </Group>
 
-      {/* Search and Filter */}
-      <div className="card mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="form-group">
-            <label className="form-label">Search</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
+        {/* Filters */}
+        <Card withBorder p="md">
+          <Grid>
+            <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+              <TextInput
                 placeholder="Search by symbol or notes..."
-                className="form-input pl-10"
+                leftSection={<IconSearch size={16} />}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Filter by Status</label>
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
-                className="form-select pl-10"
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                <option value="all">All Trades</option>
-                <option value="open">Open Positions</option>
-                <option value="closed">Closed Positions</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+              <Menu>
+                <Menu.Target>
+                  <Button variant="outline" leftSection={<IconFilter size={16} />}>
+                    Filter: {filterStatus === 'all' ? 'All Trades' : filterStatus === 'open' ? 'Open Positions' : 'Closed Positions'}
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item onClick={() => setFilterStatus('all')}>All Trades</Menu.Item>
+                  <Menu.Item onClick={() => setFilterStatus('open')}>Open Positions</Menu.Item>
+                  <Menu.Item onClick={() => setFilterStatus('closed')}>Closed Positions</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Grid.Col>
+          </Grid>
+        </Card>
 
-      {/* Add/Edit Form */}
-      {showForm && (
-        <div className="card mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {editingTrade ? 'Edit Trade' : 'Add New Trade'}
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="form-group">
-                <label className="form-label">Symbol *</label>
-                <input
-                  type="text"
-                  name="symbol"
-                  className="form-input"
-                  placeholder="e.g., AAPL"
-                  value={formData.symbol}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Shares *</label>
-                <input
-                  type="number"
-                  name="shares"
-                  className="form-input"
-                  placeholder="Number of shares"
-                  value={formData.shares}
-                  onChange={handleInputChange}
-                  required
-                  min="1"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Buy Price *</label>
-                <input
-                  type="number"
-                  name="buyPrice"
-                  className="form-input"
-                  placeholder="0.00"
-                  step="0.01"
-                  value={formData.buyPrice}
-                  onChange={handleInputChange}
-                  required
-                  min="0"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Buy Date *</label>
-                <input
-                  type="date"
-                  name="buyDate"
-                  className="form-input"
-                  value={formData.buyDate}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Sell Price</label>
-                <input
-                  type="number"
-                  name="sellPrice"
-                  className="form-input"
-                  placeholder="0.00"
-                  step="0.01"
-                  value={formData.sellPrice}
-                  onChange={handleInputChange}
-                  min="0"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Sell Date</label>
-                <input
-                  type="date"
-                  name="sellDate"
-                  className="form-input"
-                  value={formData.sellDate}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Notes</label>
-              <textarea
-                name="notes"
-                className="form-input"
-                rows="3"
-                placeholder="Additional notes about this trade..."
-                value={formData.notes}
-                onChange={handleInputChange}
-              />
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={resetForm}
-                className="btn btn-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-              >
-                {editingTrade ? 'Update Trade' : 'Add Trade'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Trades List */}
-      <div className="space-y-4">
+        {/* Trades Table */}
         {filteredTrades.length > 0 ? (
-          filteredTrades.map((trade) => {
-            const profit = getProfit(trade)
-            const status = getStatus(trade)
-            
-            return (
-              <div key={trade.id} className="card">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-4 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{trade.symbol}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        status === 'open' 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {status === 'open' ? 'Open' : 'Closed'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600">Shares</p>
-                        <p className="font-medium">{trade.shares}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Buy Price</p>
-                        <p className="font-medium">{formatCurrency(trade.buyPrice)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Buy Date</p>
-                        <p className="font-medium">{formatDate(trade.buyDate)}</p>
-                      </div>
-                      {trade.sellPrice && (
-                        <div>
-                          <p className="text-gray-600">Sell Price</p>
-                          <p className="font-medium">{formatCurrency(trade.sellPrice)}</p>
-                        </div>
-                      )}
-                    </div>
-                    {trade.notes && (
-                      <div className="mt-2">
-                        <p className="text-gray-600 text-sm">Notes</p>
-                        <p className="text-sm">{trade.notes}</p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex flex-col items-end mt-4 md:mt-0">
-                    {profit !== null && (
-                      <p className={`text-lg font-bold ${getProfitColor(profit)} mb-2`}>
-                        {formatCurrency(profit)}
-                      </p>
-                    )}
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(trade)}
-                        className="btn btn-secondary"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(trade.id)}
-                        className="btn btn-danger"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })
+          <Card withBorder>
+            <ScrollArea>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Symbol</Table.Th>
+                    <Table.Th>Shares</Table.Th>
+                    <Table.Th>Buy Price</Table.Th>
+                    <Table.Th>Buy Date</Table.Th>
+                    <Table.Th>Sell Price</Table.Th>
+                    <Table.Th>Sell Date</Table.Th>
+                    <Table.Th>Profit/Loss</Table.Th>
+                    <Table.Th>Actions</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>{rows}</Table.Tbody>
+              </Table>
+            </ScrollArea>
+          </Card>
         ) : (
-          <div className="card text-center py-12">
-            <p className="text-gray-500 text-lg mb-4">No trades found</p>
-            <p className="text-gray-400 mb-6">
-              {searchTerm || filterStatus !== 'all' 
-                ? 'Try adjusting your search or filter criteria'
-                : 'Start by adding your first trade'
-              }
-            </p>
-            {!searchTerm && filterStatus === 'all' && (
-              <button
-                onClick={() => setShowForm(true)}
-                className="btn btn-primary"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Trade
-              </button>
-            )}
-          </div>
+          <Card withBorder>
+            <Center py="xl">
+              <Stack align="center" gap="md">
+                <ThemeIcon size="xl" variant="light" color="gray">
+                  <IconBook size={32} />
+                </ThemeIcon>
+                <div style={{ textAlign: 'center' }}>
+                  <Text size="lg" fw={500} mb="xs">
+                    {searchTerm || filterStatus !== 'all' ? 'No trades found' : 'No trades yet'}
+                  </Text>
+                  <Text c="dimmed" mb="md">
+                    {searchTerm || filterStatus !== 'all' 
+                      ? 'Try adjusting your search or filter criteria'
+                      : 'Start by adding your first trade'
+                    }
+                  </Text>
+                  {!searchTerm && filterStatus === 'all' && (
+                    <Button
+                      leftSection={<IconPlus size={16} />}
+                      onClick={() => {
+                        setEditingTrade(null)
+                        form.reset()
+                        open()
+                      }}
+                      variant="gradient"
+                      gradient={{ from: 'blue', to: 'purple' }}
+                    >
+                      Add Your First Trade
+                    </Button>
+                  )}
+                </div>
+              </Stack>
+            </Center>
+          </Card>
         )}
-      </div>
-    </div>
+
+        {/* Add/Edit Modal */}
+        <Modal
+          opened={opened}
+          onClose={close}
+          title={editingTrade ? 'Edit Trade' : 'Add New Trade'}
+          size="lg"
+        >
+          <form onSubmit={form.onSubmit(handleSubmit)}>
+            <Stack gap="md">
+              <Grid>
+                <Grid.Col span={6}>
+                  <TextInput
+                    label="Symbol"
+                    placeholder="e.g., AAPL"
+                    {...form.getInputProps('symbol')}
+                  />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput
+                    label="Shares"
+                    placeholder="Number of shares"
+                    min={1}
+                    {...form.getInputProps('shares')}
+                  />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput
+                    label="Buy Price"
+                    placeholder="0.00"
+                    min={0}
+                    decimalScale={2}
+                    prefix="$"
+                    {...form.getInputProps('buyPrice')}
+                  />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <TextInput
+                    label="Buy Date"
+                    type="date"
+                    {...form.getInputProps('buyDate')}
+                  />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput
+                    label="Sell Price"
+                    placeholder="0.00"
+                    min={0}
+                    decimalScale={2}
+                    prefix="$"
+                    {...form.getInputProps('sellPrice')}
+                  />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <TextInput
+                    label="Sell Date"
+                    type="date"
+                    {...form.getInputProps('sellDate')}
+                  />
+                </Grid.Col>
+              </Grid>
+              
+              <Textarea
+                label="Notes"
+                placeholder="Additional notes about this trade..."
+                rows={3}
+                {...form.getInputProps('notes')}
+              />
+              
+              <Group justify="flex-end" mt="md">
+                <Button variant="outline" onClick={close}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="gradient" gradient={{ from: 'blue', to: 'purple' }}>
+                  {editingTrade ? 'Update Trade' : 'Add Trade'}
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Modal>
+      </Stack>
+    </Container>
   )
 }
 

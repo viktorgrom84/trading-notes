@@ -1,138 +1,146 @@
-import { Link, useLocation } from 'react-router-dom'
-import { BarChart3, BookOpen, Home, LogOut, TrendingUp, Menu, X } from 'lucide-react'
 import { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { 
+  AppShell,
+  Group, 
+  Text, 
+  Button, 
+  Burger, 
+  Drawer, 
+  Stack, 
+  Avatar, 
+  Menu,
+  ActionIcon,
+  ThemeIcon,
+  UnstyledButton
+} from '@mantine/core'
+import { 
+  IconTrendingUp, 
+  IconHome, 
+  IconBook, 
+  IconChartBar, 
+  IconLogout, 
+  IconUser,
+  IconChevronDown
+} from '@tabler/icons-react'
+import { useDisclosure } from '@mantine/hooks'
 
 const Navbar = ({ user, onLogout }) => {
   const location = useLocation()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [opened, { toggle, close }] = useDisclosure(false)
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: Home },
-    { path: '/trades', label: 'Trading Notes', icon: BookOpen },
-    { path: '/statistics', label: 'Statistics', icon: BarChart3 }
+    { path: '/', label: 'Dashboard', icon: IconHome },
+    { path: '/trades', label: 'Trading Notes', icon: IconBook },
+    { path: '/statistics', label: 'Statistics', icon: IconChartBar }
   ]
 
-  return (
-    <nav className="bg-white shadow-soft border-b border-gray-100 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-primary-600 rounded-xl shadow-lg">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">TradingNotes</span>
-          </div>
-          
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.path
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-primary-100 text-primary-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </div>
-          
-          {/* User Menu */}
-          <div className="hidden md:flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-700">
-                  {user?.username?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">
-                {user?.username}
-              </span>
-            </div>
-            <button
-              onClick={onLogout}
-              className="btn btn-outline btn-sm"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </button>
-          </div>
+  const NavLink = ({ item, onClick }) => {
+    const isActive = location.pathname === item.path
+    return (
+      <UnstyledButton
+        component={Link}
+        to={item.path}
+        onClick={onClick}
+        style={{
+          padding: '8px 16px',
+          borderRadius: '8px',
+          backgroundColor: isActive ? 'var(--mantine-color-blue-0)' : 'transparent',
+          color: isActive ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-7)',
+          fontWeight: isActive ? 600 : 400,
+          transition: 'all 0.2s',
+        }}
+        className="hover:bg-gray-100"
+      >
+        <Group gap="sm">
+          <item.icon size={18} />
+          <Text size="sm">{item.label}</Text>
+        </Group>
+      </UnstyledButton>
+    )
+  }
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+  return (
+    <>
+      <AppShell.Header p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
+        <Group justify="space-between" h="100%">
+          {/* Logo */}
+          <Group gap="sm">
+            <ThemeIcon size="lg" variant="gradient" gradient={{ from: 'blue', to: 'purple' }}>
+              <IconTrendingUp size={20} />
+            </ThemeIcon>
+            <Text fw={700} size="lg" c="dark">
+              TradingNotes
+            </Text>
+          </Group>
+
+          {/* Desktop Navigation */}
+          <Group gap="xs" visibleFrom="sm">
+            {navItems.map((item) => (
+              <NavLink key={item.path} item={item} />
+            ))}
+          </Group>
+
+          {/* Desktop User Menu */}
+          <Group gap="sm" visibleFrom="sm">
+            <Menu shadow="md" width={200}>
+              <Menu.Target>
+                <Button variant="subtle" leftSection={<IconUser size={16} />} rightSection={<IconChevronDown size={14} />}>
+                  {user?.username}
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item leftSection={<IconLogout size={14} />} onClick={onLogout}>
+                  Logout
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+
+          {/* Mobile Menu Button */}
+          <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+        </Group>
+      </AppShell.Header>
+
+      {/* Mobile Drawer */}
+      <Drawer
+        opened={opened}
+        onClose={close}
+        size="280px"
+        title="Menu"
+        hiddenFrom="sm"
+        zIndex={1000000}
+      >
+        <Stack gap="xs">
+          {navItems.map((item) => (
+            <NavLink key={item.path} item={item} onClick={close} />
+          ))}
+          
+          <div style={{ borderTop: '1px solid var(--mantine-color-gray-2)', paddingTop: '16px', marginTop: '16px' }}>
+            <Group gap="sm" p="sm">
+              <Avatar size="sm" color="blue">
+                {user?.username?.charAt(0).toUpperCase()}
+              </Avatar>
+              <Text size="sm" fw={500}>
+                {user?.username}
+              </Text>
+            </Group>
+            <Button
+              variant="subtle"
+              leftSection={<IconLogout size={16} />}
+              onClick={() => {
+                onLogout()
+                close()
+              }}
+              fullWidth
+              justify="flex-start"
             >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
+              Logout
+            </Button>
           </div>
-        </div>
-        
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-100 py-4">
-            <div className="space-y-2">
-              {navItems.map((item) => {
-                const Icon = item.icon
-                const isActive = location.pathname === item.path
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                  </Link>
-                )
-              })}
-              
-              <div className="pt-4 border-t border-gray-100">
-                <div className="flex items-center space-x-3 px-4 py-3">
-                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-primary-700">
-                      {user?.username?.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    {user?.username}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    onLogout()
-                    setMobileMenuOpen(false)
-                  }}
-                  className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </nav>
+        </Stack>
+      </Drawer>
+    </>
   )
 }
 

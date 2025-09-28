@@ -1,194 +1,155 @@
 import { useState } from 'react'
-import { LogIn, UserPlus, TrendingUp, Eye, EyeOff } from 'lucide-react'
+import { 
+  Container, 
+  Paper, 
+  TextInput, 
+  PasswordInput, 
+  Button, 
+  Title, 
+  Text, 
+  Group, 
+  Stack,
+  Center,
+  Box,
+  ThemeIcon,
+  Alert
+} from '@mantine/core'
+import { IconTrendingUp, IconEye, IconEyeOff, IconAlertCircle } from '@tabler/icons-react'
+import { useForm } from '@mantine/form'
+import { notifications } from '@mantine/notifications'
 import apiClient from '../api'
 
 const Login = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true)
-  const [showPassword, setShowPassword] = useState(false)
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    confirmPassword: ''
-  })
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-    setError('')
-  }
+  const form = useForm({
+    initialValues: {
+      username: '',
+      password: '',
+      confirmPassword: ''
+    },
+    validate: {
+      username: (value) => (value.length < 3 ? 'Username must be at least 3 characters' : null),
+      password: (value) => (value.length < 6 ? 'Password must be at least 6 characters' : null),
+      confirmPassword: (value, values) => 
+        !isLogin && value !== values.password ? 'Passwords do not match' : null,
+    },
+  })
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
+  const handleSubmit = async (values) => {
     setLoading(true)
-
     try {
-      if (!isLogin && formData.password !== formData.confirmPassword) {
-        setError('Passwords do not match')
-        return
-      }
-
-      if (formData.username.length < 3) {
-        setError('Username must be at least 3 characters long')
-        return
-      }
-
-      if (formData.password.length < 6) {
-        setError('Password must be at least 6 characters long')
-        return
-      }
-
       let response
       if (isLogin) {
-        response = await apiClient.login(formData.username, formData.password)
+        response = await apiClient.login(values.username, values.password)
       } else {
-        response = await apiClient.register(formData.username, formData.password)
+        response = await apiClient.register(values.username, values.password)
       }
+
+      notifications.show({
+        title: 'Success!',
+        message: isLogin ? 'Welcome back!' : 'Account created successfully!',
+        color: 'green',
+      })
 
       onLogin(response.user)
     } catch (error) {
-      setError(error.message || 'An error occurred')
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'An error occurred',
+        color: 'red',
+        icon: <IconAlertCircle size={16} />,
+      })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="p-3 bg-primary-600 rounded-2xl shadow-lg">
-              <TrendingUp className="w-8 h-8 text-white" />
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            {isLogin ? 'Welcome back' : 'Create your account'}
-          </h2>
-          <p className="text-gray-600">
-            {isLogin ? 'Sign in to continue to your trading dashboard' : 'Start tracking your trading performance'}
-          </p>
-        </div>
-        
-        {/* Form */}
-        <div className="card">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="form-group">
-                <label htmlFor="username" className="label">
-                  Username
-                </label>
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  required
-                  className="input"
-                  placeholder="Enter your username"
-                  value={formData.username}
-                  onChange={handleChange}
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="password" className="label">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    className="input pr-10"
-                    placeholder="Enter your password"
-                    value={formData.password}
-                    onChange={handleChange}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-gray-400" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-gray-400" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              {!isLogin && (
-                <div className="form-group">
-                  <label htmlFor="confirmPassword" className="label">
-                    Confirm Password
-                  </label>
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    className="input"
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                  />
-                </div>
-              )}
-              
-              {error && (
-                <div className="bg-danger-50 border border-danger-200 rounded-lg p-3">
-                  <p className="text-sm text-danger-600">{error}</p>
-                </div>
-              )}
-              
-              <button
-                type="submit"
-                className="btn btn-primary btn-lg w-full"
-                disabled={loading}
-              >
-                {loading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    {isLogin ? 'Signing in...' : 'Creating account...'}
-                  </div>
-                ) : isLogin ? (
-                  <>
-                    <LogIn className="w-5 h-5 mr-2" />
-                    Sign In
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-5 h-5 mr-2" />
-                    Create Account
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+    <Box 
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px'
+      }}
+    >
+      <Container size={420} my={40}>
+        <Paper withBorder shadow="xl" p={40} radius="md">
+          <Center mb="xl">
+            <ThemeIcon size={60} radius="xl" variant="gradient" gradient={{ from: 'blue', to: 'purple' }}>
+              <IconTrendingUp size={30} />
+            </ThemeIcon>
+          </Center>
           
-          {/* Toggle */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="font-medium text-primary-600 hover:text-primary-500 transition-colors"
+          <Title ta="center" mb="md">
+            {isLogin ? 'Welcome back' : 'Create account'}
+          </Title>
+          
+          <Text c="dimmed" size="sm" ta="center" mb="xl">
+            {isLogin 
+              ? 'Sign in to continue to your trading dashboard' 
+              : 'Start tracking your trading performance'
+            }
+          </Text>
+
+          <form onSubmit={form.onSubmit(handleSubmit)}>
+            <Stack>
+              <TextInput
+                label="Username"
+                placeholder="Enter your username"
+                required
+                {...form.getInputProps('username')}
+              />
+
+              <PasswordInput
+                label="Password"
+                placeholder="Enter your password"
+                required
+                {...form.getInputProps('password')}
+              />
+
+              {!isLogin && (
+                <PasswordInput
+                  label="Confirm Password"
+                  placeholder="Confirm your password"
+                  required
+                  {...form.getInputProps('confirmPassword')}
+                />
+              )}
+
+              <Button 
+                type="submit" 
+                fullWidth 
+                loading={loading}
+                size="md"
+                variant="gradient"
+                gradient={{ from: 'blue', to: 'purple' }}
               >
-                {isLogin ? 'Sign up' : 'Sign in'}
-              </button>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+                {isLogin ? 'Sign In' : 'Create Account'}
+              </Button>
+            </Stack>
+          </form>
+
+          <Text ta="center" mt="md">
+            {isLogin ? "Don't have an account? " : "Already have an account? "}
+            <Button
+              variant="subtle"
+              size="sm"
+              onClick={() => {
+                setIsLogin(!isLogin)
+                form.reset()
+              }}
+            >
+              {isLogin ? 'Sign up' : 'Sign in'}
+            </Button>
+          </Text>
+        </Paper>
+      </Container>
+    </Box>
   )
 }
 

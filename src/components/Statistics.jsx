@@ -1,6 +1,37 @@
 import { useState, useEffect } from 'react'
+import { 
+  Container, 
+  Grid, 
+  Card, 
+  Text, 
+  Group, 
+  Stack, 
+  Button, 
+  ThemeIcon, 
+  Badge, 
+  Skeleton,
+  Center,
+  Box,
+  SimpleGrid,
+  Paper,
+  Title,
+  ActionIcon,
+  SegmentedControl,
+  Table,
+  Progress
+} from '@mantine/core'
+import { 
+  IconTrendingUp, 
+  IconTrendingDown, 
+  IconCurrencyDollar, 
+  IconChartBar,
+  IconArrowUpRight,
+  IconArrowDownRight,
+  IconMinus,
+  IconChartPie,
+  IconCalendar
+} from '@tabler/icons-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
-import { TrendingUp, TrendingDown, DollarSign, BarChart3, PieChart as PieChartIcon } from 'lucide-react'
 import apiClient from '../api'
 
 const Statistics = () => {
@@ -61,6 +92,7 @@ const Statistics = () => {
     
     if (totalTrades === 0) {
       return {
+        totalTrades: 0,
         totalProfit: 0,
         winRate: 0,
         avgProfit: 0,
@@ -85,6 +117,7 @@ const Statistics = () => {
     const worstTrade = Math.min(...profits.map(p => p.profit))
 
     return {
+      totalTrades,
       totalProfit,
       winRate,
       avgProfit,
@@ -157,242 +190,254 @@ const Statistics = () => {
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
+  const StatCard = ({ title, value, icon, color = 'blue', trend = null }) => (
+    <Card withBorder radius="md" p="xl">
+      <Group justify="space-between">
+        <div>
+          <Text size="sm" c="dimmed" fw={500} mb="xs">
+            {title}
+          </Text>
+          <Text size="xl" fw={700} c={value >= 0 ? 'green' : 'red'}>
+            {typeof value === 'number' && value !== 0 ? formatCurrency(value) : value}
+          </Text>
+          {trend && (
+            <Group gap="xs" mt="xs">
+              <ActionIcon size="sm" color={trend > 0 ? 'green' : 'red'} variant="light">
+                {trend > 0 ? <IconArrowUpRight size={12} /> : <IconArrowDownRight size={12} />}
+              </ActionIcon>
+              <Text size="xs" c={trend > 0 ? 'green' : 'red'}>
+                {trend > 0 ? '+' : ''}{trend.toFixed(1)}%
+              </Text>
+            </Group>
+          )}
+        </div>
+        <ThemeIcon size="xl" variant="light" color={color}>
+          {icon}
+        </ThemeIcon>
+      </Group>
+    </Card>
+  )
+
   if (loading) {
     return (
-      <div className="container py-6">
-        <div className="text-center">
-          <div className="text-lg text-gray-600">Loading statistics...</div>
-        </div>
-      </div>
+      <Container size="xl" py="xl">
+        <Stack gap="xl">
+          <div>
+            <Skeleton height={32} width={300} mb="sm" />
+            <Skeleton height={20} width={400} />
+          </div>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} height={120} />
+            ))}
+          </SimpleGrid>
+        </Stack>
+      </Container>
     )
   }
 
   return (
-    <div className="container py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Trading Statistics</h1>
-        <p className="text-gray-600">Analyze your trading performance and trends</p>
-      </div>
-
-      {/* Time Range Selector */}
-      <div className="card mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-0">Time Range</h3>
-          <div className="flex space-x-2">
-            {[
-              { value: '6months', label: '6 Months' },
-              { value: '1year', label: '1 Year' },
-              { value: 'all', label: 'All Time' }
-            ].map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setTimeRange(option.value)}
-                className={`btn ${timeRange === option.value ? 'btn-primary' : 'btn-secondary'}`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Profit</p>
-              <p className={`text-2xl font-bold ${stats.totalProfit >= 0 ? 'text-green' : 'text-red'}`}>
-                {formatCurrency(stats.totalProfit)}
-              </p>
-            </div>
-          </div>
+    <Container size="xl" py="xl">
+      <Stack gap="xl">
+        {/* Header */}
+        <div>
+          <Title order={1} mb="sm">Trading Statistics</Title>
+          <Text c="dimmed" size="lg">Analyze your trading performance and trends</Text>
         </div>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Win Rate</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.winRate.toFixed(1)}%</p>
-            </div>
-          </div>
-        </div>
+        {/* Time Range Selector */}
+        <Card withBorder p="md">
+          <Group justify="space-between">
+            <Text fw={500}>Time Range</Text>
+            <SegmentedControl
+              value={timeRange}
+              onChange={setTimeRange}
+              data={[
+                { label: '6 Months', value: '6months' },
+                { label: '1 Year', value: '1year' },
+                { label: 'All Time', value: 'all' }
+              ]}
+            />
+          </Group>
+        </Card>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Avg Profit</p>
-              <p className={`text-2xl font-bold ${stats.avgProfit >= 0 ? 'text-green' : 'text-red'}`}>
-                {formatCurrency(stats.avgProfit)}
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Stats Overview */}
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+          <StatCard
+            title="Total Trades"
+            value={stats.totalTrades}
+            icon={<IconChartBar size={24} />}
+            color="blue"
+          />
+          <StatCard
+            title="Total Profit"
+            value={stats.totalProfit}
+            icon={<IconCurrencyDollar size={24} />}
+            color={stats.totalProfit >= 0 ? 'green' : 'red'}
+          />
+          <StatCard
+            title="Win Rate"
+            value={`${stats.winRate.toFixed(1)}%`}
+            icon={<IconTrendingUp size={24} />}
+            color="purple"
+          />
+          <StatCard
+            title="Avg Profit"
+            value={stats.avgProfit}
+            icon={<IconTrendingDown size={24} />}
+            color={stats.avgProfit >= 0 ? 'green' : 'red'}
+          />
+        </SimpleGrid>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Best Trade</p>
-              <p className="text-2xl font-bold text-green">{formatCurrency(stats.bestTrade)}</p>
-            </div>
-          </div>
-        </div>
+        {/* Additional Stats */}
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+          <StatCard
+            title="Best Trade"
+            value={stats.bestTrade}
+            icon={<IconArrowUpRight size={24} />}
+            color="green"
+          />
+          <StatCard
+            title="Worst Trade"
+            value={stats.worstTrade}
+            icon={<IconArrowDownRight size={24} />}
+            color="red"
+          />
+          <StatCard
+            title="Total Volume"
+            value={stats.totalVolume}
+            icon={<IconCurrencyDollar size={24} />}
+            color="blue"
+          />
+        </SimpleGrid>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <TrendingDown className="w-6 h-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Worst Trade</p>
-              <p className="text-2xl font-bold text-red">{formatCurrency(stats.worstTrade)}</p>
-            </div>
-          </div>
-        </div>
+        {/* Charts */}
+        <Grid>
+          <Grid.Col span={{ base: 12, lg: 8 }}>
+            <Card withBorder p="xl">
+              <Group justify="space-between" mb="md">
+                <Title order={3}>Profit Over Time</Title>
+                <SegmentedControl
+                  value={chartType}
+                  onChange={setChartType}
+                  data={[
+                    { label: 'Line', value: 'line' },
+                    { label: 'Bar', value: 'bar' }
+                  ]}
+                />
+              </Group>
+              <Box h={300}>
+                <ResponsiveContainer width="100%" height="100%">
+                  {chartType === 'line' ? (
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip formatter={(value) => [formatCurrency(value), 'Profit']} />
+                      <Line 
+                        type="monotone" 
+                        dataKey="profit" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2}
+                        dot={{ fill: '#3b82f6' }}
+                      />
+                    </LineChart>
+                  ) : (
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip formatter={(value) => [formatCurrency(value), 'Profit']} />
+                      <Bar dataKey="profit" fill="#3b82f6" />
+                    </BarChart>
+                  )}
+                </ResponsiveContainer>
+              </Box>
+            </Card>
+          </Grid.Col>
 
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <DollarSign className="w-6 h-6 text-orange-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Volume</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalVolume)}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+          <Grid.Col span={{ base: 12, lg: 4 }}>
+            <Card withBorder p="xl">
+              <Title order={3} mb="md">Win/Loss Distribution</Title>
+              <Box h={300}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={winLossData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {winLossData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Box>
+            </Card>
+          </Grid.Col>
+        </Grid>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Profit Chart */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Profit Over Time</h3>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setChartType('line')}
-                className={`btn ${chartType === 'line' ? 'btn-primary' : 'btn-secondary'}`}
-              >
-                Line
-              </button>
-              <button
-                onClick={() => setChartType('bar')}
-                className={`btn ${chartType === 'bar' ? 'btn-primary' : 'btn-secondary'}`}
-              >
-                Bar
-              </button>
-            </div>
-          </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartType === 'line' ? (
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => [formatCurrency(value), 'Profit']} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="profit" 
-                    stroke="#3b82f6" 
-                    strokeWidth={2}
-                    dot={{ fill: '#3b82f6' }}
-                  />
-                </LineChart>
-              ) : (
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => [formatCurrency(value), 'Profit']} />
-                  <Bar dataKey="profit" fill="#3b82f6" />
-                </BarChart>
-              )}
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Win/Loss Pie Chart */}
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Win/Loss Distribution</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={winLossData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {winLossData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Symbol Performance */}
-      {symbolData.length > 0 && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance by Symbol</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Symbol</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Trades</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Total Profit</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Avg Profit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {symbolData.map((item, index) => (
-                  <tr key={item.symbol} className="border-b border-gray-100">
-                    <td className="py-3 px-4 font-medium">{item.symbol}</td>
-                    <td className="py-3 px-4">{item.count}</td>
-                    <td className={`py-3 px-4 font-medium ${item.profit >= 0 ? 'text-green' : 'text-red'}`}>
-                      {formatCurrency(item.profit)}
-                    </td>
-                    <td className={`py-3 px-4 ${item.profit >= 0 ? 'text-green' : 'text-red'}`}>
-                      {formatCurrency(item.profit / item.count)}
-                    </td>
-                  </tr>
+        {/* Symbol Performance */}
+        {symbolData.length > 0 && (
+          <Card withBorder p="xl">
+            <Title order={3} mb="md">Performance by Symbol</Title>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Symbol</Table.Th>
+                  <Table.Th>Trades</Table.Th>
+                  <Table.Th>Total Profit</Table.Th>
+                  <Table.Th>Avg Profit</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {symbolData.map((item) => (
+                  <Table.Tr key={item.symbol}>
+                    <Table.Td>
+                      <Text fw={600}>{item.symbol}</Text>
+                    </Table.Td>
+                    <Table.Td>{item.count}</Table.Td>
+                    <Table.Td>
+                      <Text c={item.profit >= 0 ? 'green' : 'red'} fw={500}>
+                        {formatCurrency(item.profit)}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text c={item.profit >= 0 ? 'green' : 'red'}>
+                        {formatCurrency(item.profit / item.count)}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              </Table.Tbody>
+            </Table>
+          </Card>
+        )}
 
-      {getCompletedTrades().length === 0 && (
-        <div className="card text-center py-12">
-          <PieChartIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg mb-2">No completed trades to analyze</p>
-          <p className="text-gray-400">Complete some trades to see your statistics and charts</p>
-        </div>
-      )}
-    </div>
+        {getCompletedTrades().length === 0 && (
+          <Card withBorder>
+            <Center py="xl">
+              <Stack align="center" gap="md">
+                <ThemeIcon size="xl" variant="light" color="gray">
+                  <IconChartPie size={32} />
+                </ThemeIcon>
+                <div style={{ textAlign: 'center' }}>
+                  <Text size="lg" fw={500} mb="xs">No completed trades to analyze</Text>
+                  <Text c="dimmed">Complete some trades to see your statistics and charts</Text>
+                </div>
+              </Stack>
+            </Center>
+          </Card>
+        )}
+      </Stack>
+    </Container>
   )
 }
 

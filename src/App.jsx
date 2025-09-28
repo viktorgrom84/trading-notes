@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { MantineProvider, createTheme, AppShell } from '@mantine/core'
+import { Notifications } from '@mantine/notifications'
+import '@mantine/core/styles.css'
+import '@mantine/notifications/styles.css'
+import '@mantine/dates/styles.css'
+import '@mantine/charts/styles.css'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import TradingNotes from './components/TradingNotes'
 import Statistics from './components/Statistics'
 import Navbar from './components/Navbar'
 import apiClient from './api'
+
+const theme = createTheme({
+  primaryColor: 'blue',
+  fontFamily: 'Inter, system-ui, sans-serif',
+  defaultRadius: 'md',
+})
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -36,23 +48,29 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="App">
+    <MantineProvider theme={theme}>
+      <Notifications />
+      <Router>
         {isAuthenticated ? (
-          <>
+          <AppShell
+            header={{ height: 60 }}
+            padding="md"
+          >
             <Navbar user={user} onLogout={handleLogout} />
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/trades" element={<TradingNotes />} />
-              <Route path="/statistics" element={<Statistics />} />
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </>
+            <AppShell.Main>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/trades" element={<TradingNotes />} />
+                <Route path="/statistics" element={<Statistics />} />
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </AppShell.Main>
+          </AppShell>
         ) : (
           <Login onLogin={handleLogin} />
         )}
-      </div>
-    </Router>
+      </Router>
+    </MantineProvider>
   )
 }
 

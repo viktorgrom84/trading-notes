@@ -1,6 +1,33 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, TrendingUp, TrendingDown, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { 
+  Container, 
+  Grid, 
+  Card, 
+  Text, 
+  Group, 
+  Stack, 
+  Button, 
+  ThemeIcon, 
+  Badge, 
+  Skeleton,
+  Center,
+  Box,
+  SimpleGrid,
+  Paper,
+  Title,
+  ActionIcon
+} from '@mantine/core'
+import { 
+  IconPlus, 
+  IconTrendingUp, 
+  IconTrendingDown, 
+  IconCurrencyDollar, 
+  IconChartBar,
+  IconArrowUpRight,
+  IconArrowDownRight,
+  IconMinus
+} from '@tabler/icons-react'
 import apiClient from '../api'
 
 const Dashboard = () => {
@@ -46,205 +73,203 @@ const Dashboard = () => {
   }
 
   const getProfitColor = (profit) => {
-    if (profit > 0) return 'profit-positive'
-    if (profit < 0) return 'profit-negative'
-    return 'profit-neutral'
+    if (profit > 0) return 'green'
+    if (profit < 0) return 'red'
+    return 'gray'
   }
 
   const getProfitIcon = (profit) => {
-    if (profit > 0) return <ArrowUpRight className="w-4 h-4" />
-    if (profit < 0) return <ArrowDownRight className="w-4 h-4" />
-    return null
+    if (profit > 0) return <IconArrowUpRight size={16} />
+    if (profit < 0) return <IconArrowDownRight size={16} />
+    return <IconMinus size={16} />
   }
+
+  const StatCard = ({ title, value, icon, color = 'blue' }) => (
+    <Card withBorder radius="md" p="xl">
+      <Group justify="space-between">
+        <div>
+          <Text size="sm" c="dimmed" fw={500}>
+            {title}
+          </Text>
+          <Text size="xl" fw={700} c={getProfitColor(value)}>
+            {typeof value === 'number' && value !== 0 ? formatCurrency(value) : value}
+          </Text>
+        </div>
+        <ThemeIcon size="xl" variant="light" color={color}>
+          {icon}
+        </ThemeIcon>
+      </Group>
+    </Card>
+  )
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded-lg w-64 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-96 mb-8"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="stat-card">
-                  <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-                  <div className="h-8 bg-gray-200 rounded w-32"></div>
-                </div>
-              ))}
-            </div>
+      <Container size="xl" py="xl">
+        <Stack gap="xl">
+          <div>
+            <Skeleton height={32} width={300} mb="sm" />
+            <Skeleton height={20} width={400} />
           </div>
-        </div>
-      </div>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} height={120} />
+            ))}
+          </SimpleGrid>
+        </Stack>
+      </Container>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <Container size="xl" py="xl">
+      <Stack gap="xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Trading Dashboard</h1>
-          <p className="text-gray-600">Track your trading performance and manage your notes</p>
+        <div>
+          <Title order={1} mb="sm">Trading Dashboard</Title>
+          <Text c="dimmed" size="lg">Track your trading performance and manage your notes</Text>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="stat-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="stat-label">Total Trades</p>
-                <p className="stat-value">{stats.totalTrades}</p>
-              </div>
-              <div className="p-3 bg-primary-100 rounded-xl">
-                <BarChart3 className="w-6 h-6 text-primary-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="stat-label">Total Profit</p>
-                <p className={`stat-value ${getProfitColor(stats.totalProfit)}`}>
-                  {formatCurrency(stats.totalProfit)}
-                </p>
-              </div>
-              <div className="p-3 bg-success-100 rounded-xl">
-                <DollarSign className="w-6 h-6 text-success-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="stat-label">Win Rate</p>
-                <p className="stat-value">{stats.winRate.toFixed(1)}%</p>
-              </div>
-              <div className="p-3 bg-purple-100 rounded-xl">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="stat-label">Avg Profit</p>
-                <p className={`stat-value ${getProfitColor(stats.avgProfit)}`}>
-                  {formatCurrency(stats.avgProfit)}
-                </p>
-              </div>
-              <div className="p-3 bg-orange-100 rounded-xl">
-                <TrendingDown className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-        </div>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+          <StatCard
+            title="Total Trades"
+            value={stats.totalTrades}
+            icon={<IconChartBar size={24} />}
+            color="blue"
+          />
+          <StatCard
+            title="Total Profit"
+            value={stats.totalProfit}
+            icon={<IconCurrencyDollar size={24} />}
+            color={stats.totalProfit >= 0 ? 'green' : 'red'}
+          />
+          <StatCard
+            title="Win Rate"
+            value={`${stats.winRate.toFixed(1)}%`}
+            icon={<IconTrendingUp size={24} />}
+            color="purple"
+          />
+          <StatCard
+            title="Avg Profit"
+            value={stats.avgProfit}
+            icon={<IconTrendingDown size={24} />}
+            color={stats.avgProfit >= 0 ? 'green' : 'red'}
+          />
+        </SimpleGrid>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Quick Actions */}
-          <div className="lg:col-span-1">
-            <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">Quick Actions</h3>
-              <div className="space-y-4">
-                <Link
+        <Grid>
+          <Grid.Col span={{ base: 12, lg: 4 }}>
+            <Card withBorder radius="md" p="xl">
+              <Stack gap="md">
+                <Title order={3}>Quick Actions</Title>
+                <Button
+                  component={Link}
                   to="/trades"
-                  className="btn btn-primary btn-lg w-full justify-center"
+                  leftSection={<IconPlus size={16} />}
+                  variant="gradient"
+                  gradient={{ from: 'blue', to: 'purple' }}
+                  fullWidth
+                  size="md"
                 >
-                  <Plus className="w-5 h-5 mr-2" />
                   Add New Trade
-                </Link>
-                <Link
+                </Button>
+                <Button
+                  component={Link}
                   to="/statistics"
-                  className="btn btn-outline btn-lg w-full justify-center"
+                  leftSection={<IconChartBar size={16} />}
+                  variant="outline"
+                  fullWidth
+                  size="md"
                 >
-                  <BarChart3 className="w-5 h-5 mr-2" />
                   View Statistics
-                </Link>
-              </div>
-            </div>
-          </div>
+                </Button>
+              </Stack>
+            </Card>
+          </Grid.Col>
 
-          {/* Recent Trades */}
-          <div className="lg:col-span-2">
-            <div className="card">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Recent Trades</h3>
-                <Link
+          <Grid.Col span={{ base: 12, lg: 8 }}>
+            <Card withBorder radius="md" p="xl">
+              <Group justify="space-between" mb="md">
+                <Title order={3}>Recent Trades</Title>
+                <Button
+                  component={Link}
                   to="/trades"
-                  className="text-sm font-medium text-primary-600 hover:text-primary-500"
+                  variant="subtle"
+                  size="sm"
                 >
                   View all
-                </Link>
-              </div>
+                </Button>
+              </Group>
               
               {recentTrades.length > 0 ? (
-                <div className="space-y-4">
+                <Stack gap="sm">
                   {recentTrades.map((trade) => {
                     const profit = trade.sell_price && trade.sell_date 
                       ? (trade.sell_price - trade.buy_price) * trade.shares
                       : null
                     
                     return (
-                      <div key={trade.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-1">
-                            <h4 className="font-semibold text-gray-900">{trade.symbol}</h4>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              trade.sell_price && trade.sell_date 
-                                ? 'bg-gray-100 text-gray-700' 
-                                : 'bg-primary-100 text-primary-700'
-                            }`}>
+                      <Paper key={trade.id} withBorder p="md" radius="md">
+                        <Group justify="space-between">
+                          <Group>
+                            <Text fw={600} size="lg">{trade.symbol}</Text>
+                            <Badge 
+                              color={trade.sell_price && trade.sell_date ? 'gray' : 'blue'}
+                              variant="light"
+                            >
                               {trade.sell_price && trade.sell_date ? 'Closed' : 'Open'}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            {trade.shares} shares @ {formatCurrency(trade.buy_price)}
-                          </p>
-                        </div>
-                        
-                        <div className="text-right">
-                          {profit !== null ? (
-                            <div className={`flex items-center space-x-1 ${getProfitColor(profit)}`}>
-                              {getProfitIcon(profit)}
-                              <span className="font-semibold">
-                                {formatCurrency(profit)}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-500">Open position</span>
-                          )}
-                          <p className="text-xs text-gray-500 mt-1">
-                            {formatDate(trade.buy_date)}
-                          </p>
-                        </div>
-                      </div>
+                            </Badge>
+                          </Group>
+                          <Group>
+                            {profit !== null ? (
+                              <Group gap="xs">
+                                <ActionIcon size="sm" color={getProfitColor(profit)} variant="light">
+                                  {getProfitIcon(profit)}
+                                </ActionIcon>
+                                <Text fw={600} c={getProfitColor(profit)}>
+                                  {formatCurrency(profit)}
+                                </Text>
+                              </Group>
+                            ) : (
+                              <Text size="sm" c="dimmed">Open position</Text>
+                            )}
+                          </Group>
+                        </Group>
+                        <Text size="sm" c="dimmed" mt="xs">
+                          {trade.shares} shares @ {formatCurrency(trade.buy_price)} • {formatDate(trade.buy_date)}
+                        </Text>
+                      </Paper>
                     )
                   })}
-                </div>
+                </Stack>
               ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <BarChart3 className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <p className="text-gray-500 text-lg mb-2">No trades yet</p>
-                  <p className="text-gray-400 mb-6">Start by adding your first trade</p>
-                  <Link
-                    to="/trades"
-                    className="btn btn-primary"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Your First Trade
-                  </Link>
-                </div>
+                <Center py="xl">
+                  <Stack align="center" gap="md">
+                    <ThemeIcon size="xl" variant="light" color="gray">
+                      <IconChartBar size={32} />
+                    </ThemeIcon>
+                    <div style={{ textAlign: 'center' }}>
+                      <Text size="lg" fw={500} mb="xs">No trades yet</Text>
+                      <Text c="dimmed" mb="md">Start by adding your first trade</Text>
+                      <Button
+                        component={Link}
+                        to="/trades"
+                        leftSection={<IconPlus size={16} />}
+                        variant="gradient"
+                        gradient={{ from: 'blue', to: 'purple' }}
+                      >
+                        Add Your First Trade
+                      </Button>
+                    </div>
+                  </Stack>
+                </Center>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Card>
+          </Grid.Col>
+        </Grid>
+      </Stack>
+    </Container>
   )
 }
 

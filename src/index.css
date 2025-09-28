@@ -1,97 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
-@layer base {
-  body {
-    @apply bg-gray-50 text-gray-900 font-sans;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-@layer components {
-  .btn {
-    @apply inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
-  }
-  
-  .btn-sm {
-    @apply px-3 py-1.5 text-sm;
-  }
-  
-  .btn-md {
-    @apply px-4 py-2 text-sm;
-  }
-  
-  .btn-lg {
-    @apply px-6 py-3 text-base;
-  }
-  
-  .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 shadow-sm;
-  }
-  
-  .btn-secondary {
-    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
-  }
-  
-  .btn-success {
-    @apply bg-success-600 text-white hover:bg-success-700 focus:ring-success-500 shadow-sm;
-  }
-  
-  .btn-danger {
-    @apply bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500 shadow-sm;
-  }
-  
-  .btn-outline {
-    @apply border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-primary-500;
-  }
-  
-  .card {
-    @apply bg-white rounded-xl shadow-soft border border-gray-100 p-6;
-  }
-  
-  .card-hover {
-    @apply hover:shadow-medium transition-shadow duration-200;
-  }
-  
-  .input {
-    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 bg-white;
-  }
-  
-  .input-error {
-    @apply border-danger-500 focus:ring-danger-500 focus:border-danger-500;
-  }
-  
-  .label {
-    @apply block text-sm font-medium text-gray-700 mb-2;
-  }
-  
-  .form-group {
-    @apply space-y-2;
-  }
-  
-  .stat-card {
-    @apply bg-gradient-to-br from-white to-gray-50 rounded-xl p-6 shadow-soft border border-gray-100;
-  }
-  
-  .stat-value {
-    @apply text-2xl font-bold text-gray-900;
-  }
-  
-  .stat-label {
-    @apply text-sm font-medium text-gray-600;
-  }
-  
-  .profit-positive {
-    @apply text-success-600;
-  }
-  
-  .profit-negative {
-    @apply text-danger-600;
-  }
-  
-  .profit-neutral {
-    @apply text-gray-500;
-  }
+* {
+  box-sizing: border-box;
 }
