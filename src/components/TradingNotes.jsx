@@ -284,11 +284,11 @@ const TradingNotes = () => {
           <Group gap="sm">
             <Text fw={600}>{trade.symbol}</Text>
             <Badge 
-              color={isProfitOnlyTrade ? 'purple' : (status === 'open' ? 'blue' : 'gray')}
+              color={status === 'open' ? 'blue' : 'gray'}
               variant="light"
               size="sm"
             >
-              {isProfitOnlyTrade ? 'Profit Only' : (status === 'open' ? 'Open' : 'Closed')}
+              {status === 'open' ? 'Open' : 'Closed'}
             </Badge>
           </Group>
         </Table.Td>

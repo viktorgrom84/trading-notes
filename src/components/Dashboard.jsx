@@ -250,7 +250,7 @@ const Dashboard = () => {
                         </Group>
                         <Text size="sm" c="dimmed" mt="xs">
                           {isProfitOnlyTrade ? (
-                            `Profit-only trade • ${formatDate(trade.buy_date)}`
+                            `Profit trade • ${formatDate(trade.buy_date)}`
                           ) : (
                             `${trade.shares} shares @ ${formatCurrency(trade.buy_price)} • ${formatDate(trade.buy_date)}`
                           )}
