@@ -10,7 +10,7 @@ const verifyToken = (token) => {
   }
 };
 
-// Shared authentication utility for both local and Vercel APIs
+// Shared authentication utility for both local and Vercel APIs - Updated
 export const authenticateUser = (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
