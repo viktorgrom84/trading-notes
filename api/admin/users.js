@@ -27,8 +27,6 @@ export default async function handler(req, res) {
       return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
     }
 
-  try {
-
     const client = await pool.connect();
     
     try {
