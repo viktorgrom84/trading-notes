@@ -21,6 +21,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'https://trading-notes.vercel.app',
+        changeOrigin: true,
+        secure: true
+      }
+    }
   }
 })
