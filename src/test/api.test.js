@@ -46,7 +46,10 @@ describe('API Client', () => {
       
       expect(fetch).toHaveBeenCalledWith('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-token'
+        },
         body: JSON.stringify({ username: 'testuser', password: 'password123' })
       })
       expect(result).toEqual(mockResponse)
@@ -81,7 +84,10 @@ describe('API Client', () => {
       const result = await apiClient.getTrades()
       
       expect(fetch).toHaveBeenCalledWith('/api/trades', {
-        headers: { 'Authorization': 'Bearer mock-token' }
+        headers: { 
+          'Authorization': 'Bearer mock-token',
+          'Content-Type': 'application/json'
+        }
       })
       expect(result).toEqual(mockTrades)
     })
@@ -179,7 +185,10 @@ describe('API Client', () => {
       
       expect(fetch).toHaveBeenCalledWith(`/api/trades/${tradeId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer mock-token' }
+        headers: { 
+          'Authorization': 'Bearer mock-token',
+          'Content-Type': 'application/json'
+        }
       })
       expect(result).toEqual({ message: 'Trade deleted successfully' })
     })
@@ -206,7 +215,10 @@ describe('API Client', () => {
       const result = await apiClient.getStatistics()
       
       expect(fetch).toHaveBeenCalledWith('/api/statistics', {
-        headers: { 'Authorization': 'Bearer mock-token' }
+        headers: { 
+          'Authorization': 'Bearer mock-token',
+          'Content-Type': 'application/json'
+        }
       })
       expect(result).toEqual(mockStats)
     })
@@ -230,8 +242,11 @@ describe('API Client', () => {
 
       const result = await apiClient.getUsers()
       
-      expect(fetch).toHaveBeenCalledWith('/admin-users', {
-        headers: { 'Authorization': 'Bearer mock-token' }
+      expect(fetch).toHaveBeenCalledWith('/api/admin-users', {
+        headers: { 
+          'Authorization': 'Bearer mock-token',
+          'Content-Type': 'application/json'
+        }
       })
       expect(result).toEqual(mockUsers)
     })
@@ -246,9 +261,12 @@ describe('API Client', () => {
 
       const result = await apiClient.deleteUser(userId)
       
-      expect(fetch).toHaveBeenCalledWith('/admin-users?id=2', {
+      expect(fetch).toHaveBeenCalledWith('/api/admin-users?id=2', {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer mock-token' }
+        headers: { 
+          'Authorization': 'Bearer mock-token',
+          'Content-Type': 'application/json'
+        }
       })
       expect(result).toEqual({ message: 'User deleted successfully' })
     })

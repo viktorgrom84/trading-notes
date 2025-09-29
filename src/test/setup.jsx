@@ -49,7 +49,10 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
   useLocation: () => ({ pathname: '/' }),
-  Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>,
+  Link: ({ children, to, ...props }) => {
+    const React = require('react')
+    return React.createElement('a', { href: to, ...props }, children)
+  },
   BrowserRouter: ({ children }) => children,
   Routes: ({ children }) => children,
   Route: ({ children }) => children,
