@@ -265,7 +265,7 @@ app.delete('/api/trades/:id', authenticateToken, async (req, res) => {
 });
 
 // Admin endpoints
-const ADMIN_USERNAME = 'viktorgrom84@gmail.com';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'viktorgrom84@gmail.com';
 
 // Get all users (admin only)
 app.get('/api/admin/users', authenticateToken, async (req, res) => {

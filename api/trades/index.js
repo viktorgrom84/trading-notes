@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { verifyToken } from '../auth.js';
+import { authenticateUser, handleAuthError } from '../auth-utils.js';
 
 const pool = new Pool({
   connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
