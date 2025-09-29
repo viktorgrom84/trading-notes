@@ -63,15 +63,14 @@ const TradingNotes = () => {
       sellPrice: '',
       sellDate: '',
       notes: '',
-      profit: 0,
-      tradeDate: ''
+      profit: 0
     },
     validate: (values) => {
       if (isProfitOnlyMode) {
         return {
           symbol: (!values.symbol ? 'Symbol is required' : null),
           profit: (values.profit === 0 ? 'Profit/Loss is required' : null),
-          tradeDate: (!values.tradeDate ? 'Trade date is required' : null),
+          buyDate: (!values.buyDate ? 'Trade date is required' : null),
         }
       } else {
         return {
@@ -117,8 +116,8 @@ const TradingNotes = () => {
           shares: 1, // Dummy value
           buyPrice: 0, // Dummy value
           sellPrice: parseFloat(values.profit), // Store profit as sell price
-          buyDate: values.tradeDate,
-          sellDate: values.tradeDate, // Same date for both
+          buyDate: values.buyDate,
+          sellDate: values.buyDate, // Same date for both
           notes: values.notes || `Profit-only trade: ${values.profit > 0 ? '+' : ''}${values.profit}`
         }
       } else {
@@ -178,12 +177,11 @@ const TradingNotes = () => {
       form.setValues({
         symbol: trade.symbol,
         profit: trade.sell_price || 0,
-        tradeDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
+        buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
         notes: trade.notes ? trade.notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : '',
         // Set dummy values for regular fields
         shares: 0,
         buyPrice: 0,
-        buyDate: '',
         sellPrice: '',
         sellDate: ''
       })
@@ -197,8 +195,7 @@ const TradingNotes = () => {
         sellDate: trade.sell_date ? new Date(trade.sell_date).toISOString().split('T')[0] : '',
         notes: trade.notes || '',
         // Set dummy values for profit-only fields
-        profit: 0,
-        tradeDate: ''
+        profit: 0
       })
     }
     open()
@@ -513,7 +510,7 @@ const TradingNotes = () => {
                     <TextInput
                       label="Trade Date"
                       type="date"
-                      {...form.getInputProps('tradeDate')}
+                      {...form.getInputProps('buyDate')}
                     />
                   </Grid.Col>
                 </Grid>

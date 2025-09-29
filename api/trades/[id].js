@@ -28,20 +28,40 @@ export default async function handler(req, res) {
     
     try {
       if (req.method === 'PUT') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = req.body;
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit } = req.body;
 
-        const result = await client.query(
-          `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
-           buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
-           WHERE id = $8 AND user_id = $9 RETURNING *`,
-          [symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, id, userId]
-        );
+        // Check if this is a profit-only trade
+        const isProfitOnlyTrade = profit !== undefined;
+        
+        if (isProfitOnlyTrade) {
+          // Profit-only trade update
+          const result = await client.query(
+            `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
+             buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $8 AND user_id = $9 RETURNING *`,
+            [symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, id, userId]
+          );
 
-        if (result.rows.length === 0) {
-          return res.status(404).json({ message: 'Trade not found' });
+          if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Trade not found' });
+          }
+
+          res.json(result.rows[0]);
+        } else {
+          // Regular trade update
+          const result = await client.query(
+            `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
+             buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $8 AND user_id = $9 RETURNING *`,
+            [symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, id, userId]
+          );
+
+          if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Trade not found' });
+          }
+
+          res.json(result.rows[0]);
         }
-
-        res.json(result.rows[0]);
       } else if (req.method === 'DELETE') {
         const result = await client.query(
           'DELETE FROM trades WHERE id = $1 AND user_id = $2 RETURNING id',

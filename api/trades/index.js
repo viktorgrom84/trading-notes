@@ -33,19 +33,39 @@ export default async function handler(req, res) {
         );
         res.json(result.rows);
       } else if (req.method === 'POST') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = req.body;
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit } = req.body;
 
-        if (!symbol || !shares || !buyPrice || !buyDate) {
-          return res.status(400).json({ message: 'Symbol, shares, buy price, and buy date are required' });
+        // Check if this is a profit-only trade
+        const isProfitOnlyTrade = profit !== undefined;
+        
+        if (isProfitOnlyTrade) {
+          // Profit-only trade validation
+          if (!symbol || profit === undefined || !buyDate) {
+            return res.status(400).json({ message: 'Symbol, profit, and buy date are required for profit-only trades' });
+          }
+          
+          // For profit-only trades, store profit as sell_price with dummy values
+          const result = await client.query(
+            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+            [userId, symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`]
+          );
+          
+          res.status(201).json(result.rows[0]);
+        } else {
+          // Regular trade validation
+          if (!symbol || !shares || !buyPrice || !buyDate) {
+            return res.status(400).json({ message: 'Symbol, shares, buy price, and buy date are required' });
+          }
+
+          const result = await client.query(
+            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+            [userId, symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes]
+          );
+
+          res.status(201).json(result.rows[0]);
         }
-
-        const result = await client.query(
-          `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-          [userId, symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes]
-        );
-
-        res.status(201).json(result.rows[0]);
       } else {
         res.status(405).json({ message: 'Method not allowed' });
       }
