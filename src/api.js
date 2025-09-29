@@ -94,11 +94,11 @@ class ApiClient {
 
   // Admin
   async getUsers() {
-    return this.request('/admin/users');
+    return this.request('/admin-users');
   }
 
   async deleteUser(id) {
-    return this.request(`/admin/users/${id}`, {
+    return this.request(`/admin-users?id=${id}`, {
       method: 'DELETE',
     });
   }
