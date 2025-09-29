@@ -1,4 +1,4 @@
-import { createUser, getUserByUsername } from '../db.js';
+import { createUser, getUserByUsername } from '../db-prisma.js';
 import { hashPassword, generateToken } from '../auth.js';
 
 export default async function handler(req, res) {

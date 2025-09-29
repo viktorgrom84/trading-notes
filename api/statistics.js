@@ -1,4 +1,4 @@
-import { getTradesByUserId } from './db.js';
+import { getTradesByUserId } from './db-prisma.js';
 import { verifyToken, getTokenFromRequest } from './auth.js';
 
 export default async function handler(req, res) {
