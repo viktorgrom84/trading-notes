@@ -44,9 +44,24 @@ export default async function handler(req, res) {
       let losingTrades = 0;
 
       completedTrades.forEach(trade => {
-        const buyValue = trade.buy_price * trade.shares;
-        const sellValue = trade.sell_price * trade.shares;
-        const profit = sellValue - buyValue;
+        // Check if this is a profit-only trade
+        const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
+                                 trade.buy_date === trade.sell_date && 
+                                 trade.notes && trade.notes.includes('Profit-only trade');
+        
+        let profit;
+        let buyValue;
+        
+        if (isProfitOnlyTrade) {
+          // For profit-only trades, the profit is stored in sell_price
+          profit = trade.sell_price;
+          buyValue = 0; // No investment for profit-only trades
+        } else {
+          // Regular trade calculation
+          buyValue = trade.buy_price * trade.shares;
+          const sellValue = trade.sell_price * trade.shares;
+          profit = sellValue - buyValue;
+        }
         
         totalInvested += buyValue;
         totalProfit += profit;

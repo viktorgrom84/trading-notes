@@ -151,9 +151,9 @@ const Dashboard = () => {
           />
           <StatCard
             title="Avg Profit"
-            value={stats.avgProfitPerTrade}
+            value={stats.avgProfitPerTrade || 0}
             icon={<IconTrendingDown size={24} />}
-            color={stats.avgProfitPerTrade >= 0 ? 'green' : 'red'}
+            color={(stats.avgProfitPerTrade || 0) >= 0 ? 'green' : 'red'}
           />
         </SimpleGrid>
 
@@ -205,9 +205,21 @@ const Dashboard = () => {
               {recentTrades.length > 0 ? (
                 <Stack gap="sm">
                   {recentTrades.map((trade) => {
-                    const profit = trade.sell_price && trade.sell_date 
-                      ? (trade.sell_price - trade.buy_price) * trade.shares
-                      : null
+                    // Check if this is a profit-only trade
+                    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
+                                             trade.buy_date === trade.sell_date && 
+                                             trade.notes && trade.notes.includes('Profit-only trade');
+                    
+                    let profit;
+                    if (trade.sell_price && trade.sell_date) {
+                      if (isProfitOnlyTrade) {
+                        profit = trade.sell_price; // For profit-only trades, sell_price contains the profit
+                      } else {
+                        profit = (trade.sell_price - trade.buy_price) * trade.shares;
+                      }
+                    } else {
+                      profit = null;
+                    }
                     
                     return (
                       <Paper key={trade.id} withBorder p="md" radius="md">
@@ -237,7 +249,11 @@ const Dashboard = () => {
                           </Group>
                         </Group>
                         <Text size="sm" c="dimmed" mt="xs">
-                          {trade.shares} shares @ {formatCurrency(trade.buy_price)} • {formatDate(trade.buy_date)}
+                          {isProfitOnlyTrade ? (
+                            `Profit-only trade • ${formatDate(trade.buy_date)}`
+                          ) : (
+                            `${trade.shares} shares @ ${formatCurrency(trade.buy_price)} • ${formatDate(trade.buy_date)}`
+                          )}
                         </Text>
                       </Paper>
                     )
