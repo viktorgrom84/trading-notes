@@ -22,7 +22,9 @@ import {
   Drawer,
   ScrollArea,
   Divider,
-  Skeleton
+  Skeleton,
+  Switch,
+  SegmentedControl
 } from '@mantine/core'
 import { 
   IconPlus, 
@@ -35,7 +37,8 @@ import {
   IconCurrencyDollar,
   IconTrendingUp,
   IconTrendingDown,
-  IconMinus
+  IconMinus,
+  IconSwitch
 } from '@tabler/icons-react'
 import { useForm } from '@mantine/form'
 import { useDisclosure } from '@mantine/hooks'
@@ -49,6 +52,7 @@ const TradingNotes = () => {
   const [loading, setLoading] = useState(true)
   const [opened, { open, close }] = useDisclosure(false)
   const [editingTrade, setEditingTrade] = useState(null)
+  const [isProfitOnlyMode, setIsProfitOnlyMode] = useState(false)
 
   const form = useForm({
     initialValues: {
@@ -58,13 +62,25 @@ const TradingNotes = () => {
       buyDate: '',
       sellPrice: '',
       sellDate: '',
-      notes: ''
+      notes: '',
+      profit: 0,
+      tradeDate: ''
     },
-    validate: {
-      symbol: (value) => (!value ? 'Symbol is required' : null),
-      shares: (value) => (value <= 0 ? 'Shares must be greater than 0' : null),
-      buyPrice: (value) => (value <= 0 ? 'Buy price must be greater than 0' : null),
-      buyDate: (value) => (!value ? 'Buy date is required' : null),
+    validate: (values) => {
+      if (isProfitOnlyMode) {
+        return {
+          symbol: (!values.symbol ? 'Symbol is required' : null),
+          profit: (values.profit === 0 ? 'Profit/Loss is required' : null),
+          tradeDate: (!values.tradeDate ? 'Trade date is required' : null),
+        }
+      } else {
+        return {
+          symbol: (!values.symbol ? 'Symbol is required' : null),
+          shares: (values.shares <= 0 ? 'Shares must be greater than 0' : null),
+          buyPrice: (values.buyPrice <= 0 ? 'Buy price must be greater than 0' : null),
+          buyDate: (!values.buyDate ? 'Buy date is required' : null),
+        }
+      }
     },
   })
 
@@ -91,14 +107,31 @@ const TradingNotes = () => {
 
   const handleSubmit = async (values) => {
     try {
-      const tradeData = {
-        symbol: values.symbol.toUpperCase(),
-        shares: parseInt(values.shares),
-        buyPrice: parseFloat(values.buyPrice),
-        sellPrice: values.sellPrice ? parseFloat(values.sellPrice) : null,
-        buyDate: values.buyDate,
-        sellDate: values.sellDate || null,
-        notes: values.notes || null
+      let tradeData;
+      
+      if (isProfitOnlyMode) {
+        // For profit-only mode, we'll store the profit as a completed trade
+        // with dummy values for shares and prices
+        tradeData = {
+          symbol: values.symbol.toUpperCase(),
+          shares: 1, // Dummy value
+          buyPrice: 0, // Dummy value
+          sellPrice: parseFloat(values.profit), // Store profit as sell price
+          buyDate: values.tradeDate,
+          sellDate: values.tradeDate, // Same date for both
+          notes: values.notes || `Profit-only trade: ${values.profit > 0 ? '+' : ''}${values.profit}`
+        }
+      } else {
+        // Regular mode
+        tradeData = {
+          symbol: values.symbol.toUpperCase(),
+          shares: parseInt(values.shares),
+          buyPrice: parseFloat(values.buyPrice),
+          sellPrice: values.sellPrice ? parseFloat(values.sellPrice) : null,
+          buyDate: values.buyDate,
+          sellDate: values.sellDate || null,
+          notes: values.notes || null
+        }
       }
 
       if (editingTrade) {
@@ -133,15 +166,41 @@ const TradingNotes = () => {
 
   const handleEdit = (trade) => {
     setEditingTrade(trade)
-    form.setValues({
-      symbol: trade.symbol,
-      shares: trade.shares,
-      buyPrice: trade.buy_price,
-      buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
-      sellPrice: trade.sell_price || '',
-      sellDate: trade.sell_date ? new Date(trade.sell_date).toISOString().split('T')[0] : '',
-      notes: trade.notes || ''
-    })
+    
+    // Check if this is a profit-only trade (shares = 1, buyPrice = 0, same buy/sell date)
+    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
+                             trade.buy_date === trade.sell_date && 
+                             trade.notes && trade.notes.includes('Profit-only trade')
+    
+    setIsProfitOnlyMode(isProfitOnlyTrade)
+    
+    if (isProfitOnlyTrade) {
+      form.setValues({
+        symbol: trade.symbol,
+        profit: trade.sell_price || 0,
+        tradeDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
+        notes: trade.notes ? trade.notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : '',
+        // Set dummy values for regular fields
+        shares: 0,
+        buyPrice: 0,
+        buyDate: '',
+        sellPrice: '',
+        sellDate: ''
+      })
+    } else {
+      form.setValues({
+        symbol: trade.symbol,
+        shares: trade.shares,
+        buyPrice: trade.buy_price,
+        buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
+        sellPrice: trade.sell_price || '',
+        sellDate: trade.sell_date ? new Date(trade.sell_date).toISOString().split('T')[0] : '',
+        notes: trade.notes || '',
+        // Set dummy values for profit-only fields
+        profit: 0,
+        tradeDate: ''
+      })
+    }
     open()
   }
 
@@ -177,6 +236,16 @@ const TradingNotes = () => {
 
   const getProfit = (trade) => {
     if (!trade.sell_price || !trade.sell_date) return null
+    
+    // Check if this is a profit-only trade
+    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
+                             trade.buy_date === trade.sell_date && 
+                             trade.notes && trade.notes.includes('Profit-only trade')
+    
+    if (isProfitOnlyTrade) {
+      return trade.sell_price // For profit-only trades, sell_price contains the profit
+    }
+    
     return (trade.sell_price - trade.buy_price) * trade.shares
   }
 
@@ -205,6 +274,9 @@ const TradingNotes = () => {
   const rows = filteredTrades.map((trade) => {
     const profit = getProfit(trade)
     const status = getStatus(trade)
+    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
+                             trade.buy_date === trade.sell_date && 
+                             trade.notes && trade.notes.includes('Profit-only trade')
     
     return (
       <Table.Tr key={trade.id}>
@@ -212,22 +284,26 @@ const TradingNotes = () => {
           <Group gap="sm">
             <Text fw={600}>{trade.symbol}</Text>
             <Badge 
-              color={status === 'open' ? 'blue' : 'gray'}
+              color={isProfitOnlyTrade ? 'purple' : (status === 'open' ? 'blue' : 'gray')}
               variant="light"
               size="sm"
             >
-              {status === 'open' ? 'Open' : 'Closed'}
+              {isProfitOnlyTrade ? 'Profit Only' : (status === 'open' ? 'Open' : 'Closed')}
             </Badge>
           </Group>
         </Table.Td>
-        <Table.Td>{trade.shares}</Table.Td>
-        <Table.Td>{formatCurrency(trade.buy_price)}</Table.Td>
-        <Table.Td>{formatDate(trade.buy_date)}</Table.Td>
         <Table.Td>
-          {trade.sell_price ? formatCurrency(trade.sell_price) : '-'}
+          {isProfitOnlyTrade ? '-' : trade.shares}
         </Table.Td>
         <Table.Td>
-          {trade.sell_date ? formatDate(trade.sell_date) : '-'}
+          {isProfitOnlyTrade ? '-' : formatCurrency(trade.buy_price)}
+        </Table.Td>
+        <Table.Td>{formatDate(trade.buy_date)}</Table.Td>
+        <Table.Td>
+          {isProfitOnlyTrade ? '-' : (trade.sell_price ? formatCurrency(trade.sell_price) : '-')}
+        </Table.Td>
+        <Table.Td>
+          {isProfitOnlyTrade ? '-' : (trade.sell_date ? formatDate(trade.sell_date) : '-')}
         </Table.Td>
         <Table.Td>
           {profit !== null ? (
@@ -398,57 +474,103 @@ const TradingNotes = () => {
         >
           <form onSubmit={form.onSubmit(handleSubmit)}>
             <Stack gap="md">
-              <Grid>
-                <Grid.Col span={6}>
-                  <TextInput
-                    label="Symbol"
-                    placeholder="e.g., AAPL"
-                    {...form.getInputProps('symbol')}
-                  />
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <NumberInput
-                    label="Shares"
-                    placeholder="Number of shares"
-                    min={1}
-                    {...form.getInputProps('shares')}
-                  />
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <NumberInput
-                    label="Buy Price"
-                    placeholder="0.00"
-                    min={0}
-                    decimalScale={2}
-                    prefix="$"
-                    {...form.getInputProps('buyPrice')}
-                  />
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <TextInput
-                    label="Buy Date"
-                    type="date"
-                    {...form.getInputProps('buyDate')}
-                  />
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <NumberInput
-                    label="Sell Price"
-                    placeholder="0.00"
-                    min={0}
-                    decimalScale={2}
-                    prefix="$"
-                    {...form.getInputProps('sellPrice')}
-                  />
-                </Grid.Col>
-                <Grid.Col span={6}>
-                  <TextInput
-                    label="Sell Date"
-                    type="date"
-                    {...form.getInputProps('sellDate')}
-                  />
-                </Grid.Col>
-              </Grid>
+              {/* Mode Toggle */}
+              <Group justify="center" mb="md">
+                <SegmentedControl
+                  value={isProfitOnlyMode ? 'profit' : 'regular'}
+                  onChange={(value) => {
+                    setIsProfitOnlyMode(value === 'profit')
+                    form.reset()
+                  }}
+                  data={[
+                    { label: 'Regular Trade', value: 'regular' },
+                    { label: 'Profit Only', value: 'profit' }
+                  ]}
+                  size="sm"
+                />
+              </Group>
+
+              {isProfitOnlyMode ? (
+                // Profit-only mode fields
+                <Grid>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Symbol"
+                      placeholder="e.g., AAPL"
+                      {...form.getInputProps('symbol')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Profit/Loss"
+                      placeholder="0.00"
+                      decimalScale={2}
+                      prefix="$"
+                      {...form.getInputProps('profit')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={12}>
+                    <TextInput
+                      label="Trade Date"
+                      type="date"
+                      {...form.getInputProps('tradeDate')}
+                    />
+                  </Grid.Col>
+                </Grid>
+              ) : (
+                // Regular mode fields
+                <Grid>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Symbol"
+                      placeholder="e.g., AAPL"
+                      {...form.getInputProps('symbol')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Shares"
+                      placeholder="Number of shares"
+                      min={1}
+                      {...form.getInputProps('shares')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Buy Price"
+                      placeholder="0.00"
+                      min={0}
+                      decimalScale={2}
+                      prefix="$"
+                      {...form.getInputProps('buyPrice')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Buy Date"
+                      type="date"
+                      {...form.getInputProps('buyDate')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Sell Price"
+                      placeholder="0.00"
+                      min={0}
+                      decimalScale={2}
+                      prefix="$"
+                      {...form.getInputProps('sellPrice')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Sell Date"
+                      type="date"
+                      {...form.getInputProps('sellDate')}
+                    />
+                  </Grid.Col>
+                </Grid>
+              )}
               
               <Textarea
                 label="Notes"
