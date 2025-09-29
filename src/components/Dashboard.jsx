@@ -92,7 +92,7 @@ const Dashboard = () => {
             {title}
           </Text>
           <Text size="xl" fw={700} c={getProfitColor(value)}>
-            {typeof value === 'number' && value !== 0 ? formatCurrency(value) : value}
+            {title === 'Total Trades' ? value : (typeof value === 'number' && value !== 0 ? formatCurrency(value) : value)}
           </Text>
         </div>
         <ThemeIcon size="xl" variant="light" color={color}>
@@ -147,13 +147,13 @@ const Dashboard = () => {
             title="Win Rate"
             value={`${stats.winRate.toFixed(1)}%`}
             icon={<IconTrendingUp size={24} />}
-            color="purple"
+            color={stats.winRate >= 80 ? 'green' : stats.winRate >= 60 ? 'yellow' : 'red'}
           />
           <StatCard
             title="Avg Profit"
-            value={stats.avgProfit}
+            value={stats.avgProfitPerTrade}
             icon={<IconTrendingDown size={24} />}
-            color={stats.avgProfit >= 0 ? 'green' : 'red'}
+            color={stats.avgProfitPerTrade >= 0 ? 'green' : 'red'}
           />
         </SimpleGrid>
 

@@ -198,7 +198,7 @@ const Statistics = () => {
             {title}
           </Text>
           <Text size="xl" fw={700} c={value >= 0 ? 'green' : 'red'}>
-            {typeof value === 'number' && value !== 0 ? formatCurrency(value) : value}
+            {title === 'Total Trades' ? value : (typeof value === 'number' && value !== 0 ? formatCurrency(value) : value)}
           </Text>
           {trend && (
             <Group gap="xs" mt="xs">
@@ -279,7 +279,7 @@ const Statistics = () => {
             title="Win Rate"
             value={`${stats.winRate.toFixed(1)}%`}
             icon={<IconTrendingUp size={24} />}
-            color="purple"
+            color={stats.winRate >= 80 ? 'green' : stats.winRate >= 60 ? 'yellow' : 'red'}
           />
           <StatCard
             title="Avg Profit"

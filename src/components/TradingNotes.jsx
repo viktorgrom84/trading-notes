@@ -137,9 +137,9 @@ const TradingNotes = () => {
       symbol: trade.symbol,
       shares: trade.shares,
       buyPrice: trade.buy_price,
-      buyDate: trade.buy_date,
+      buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
       sellPrice: trade.sell_price || '',
-      sellDate: trade.sell_date || '',
+      sellDate: trade.sell_date ? new Date(trade.sell_date).toISOString().split('T')[0] : '',
       notes: trade.notes || ''
     })
     open()
