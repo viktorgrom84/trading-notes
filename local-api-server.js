@@ -264,6 +264,71 @@ app.delete('/api/trades/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Admin endpoints
+const ADMIN_USERNAME = 'viktorgrom84@gmail.com';
+
+// Get all users (admin only)
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.username !== ADMIN_USERNAME) {
+      return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+    }
+
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'SELECT id, username, created_at FROM users ORDER BY created_at DESC'
+      );
+      res.json(result.rows);
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Admin users error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Delete user (admin only)
+app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.username !== ADMIN_USERNAME) {
+      return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+    }
+
+    const { id } = req.params;
+    
+    // Prevent admin from deleting themselves
+    if (parseInt(id) === req.user.userId) {
+      return res.status(400).json({ message: 'Cannot delete your own account' });
+    }
+
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'DELETE FROM users WHERE id = $1 RETURNING id, username',
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.json({ 
+        message: 'User deleted successfully', 
+        deletedUser: result.rows[0] 
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Admin delete user error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get statistics
 app.get('/api/statistics', authenticateToken, async (req, res) => {
   try {
@@ -321,6 +386,8 @@ app.listen(PORT, async () => {
   console.log(`   PUT  http://localhost:${PORT}/api/trades/:id`);
   console.log(`   DELETE http://localhost:${PORT}/api/trades/:id`);
   console.log(`   GET  http://localhost:${PORT}/api/statistics`);
+  console.log(`   GET  http://localhost:${PORT}/api/admin/users (Admin only)`);
+  console.log(`   DELETE http://localhost:${PORT}/api/admin/users/:id (Admin only)`);
   
   // Initialize database
   try {

@@ -21,9 +21,11 @@ import {
   IconChartBar, 
   IconLogout, 
   IconUser,
-  IconChevronDown
+  IconChevronDown,
+  IconShield
 } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
+import { checkAdminAccess } from '../utils/admin'
 
 const Navbar = ({ user, onLogout }) => {
   const location = useLocation()
@@ -32,7 +34,8 @@ const Navbar = ({ user, onLogout }) => {
   const navItems = [
     { path: '/', label: 'Dashboard', icon: IconHome },
     { path: '/trades', label: 'Trading Notes', icon: IconBook },
-    { path: '/statistics', label: 'Statistics', icon: IconChartBar }
+    { path: '/statistics', label: 'Statistics', icon: IconChartBar },
+    { path: '/admin', label: 'Admin', icon: IconShield, adminOnly: true }
   ]
 
   const NavLink = ({ item, onClick }) => {
@@ -74,12 +77,14 @@ const Navbar = ({ user, onLogout }) => {
             </Text>
           </Group>
 
-          {/* Desktop Navigation */}
-          <Group gap="xs" visibleFrom="sm">
-            {navItems.map((item) => (
-              <NavLink key={item.path} item={item} />
-            ))}
-          </Group>
+              {/* Desktop Navigation */}
+              <Group gap="xs" visibleFrom="sm">
+                {navItems
+                  .filter(item => !item.adminOnly || checkAdminAccess(user))
+                  .map((item) => (
+                    <NavLink key={item.path} item={item} />
+                  ))}
+              </Group>
 
           {/* Desktop User Menu */}
           <Group gap="sm" visibleFrom="sm">
@@ -111,10 +116,12 @@ const Navbar = ({ user, onLogout }) => {
         hiddenFrom="sm"
         zIndex={1000000}
       >
-        <Stack gap="xs">
-          {navItems.map((item) => (
-            <NavLink key={item.path} item={item} onClick={close} />
-          ))}
+            <Stack gap="xs">
+              {navItems
+                .filter(item => !item.adminOnly || checkAdminAccess(user))
+                .map((item) => (
+                  <NavLink key={item.path} item={item} onClick={close} />
+                ))}
           
           <div style={{ borderTop: '1px solid var(--mantine-color-gray-2)', paddingTop: '16px', marginTop: '16px' }}>
             <Group gap="sm" p="sm">

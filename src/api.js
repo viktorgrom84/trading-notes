@@ -91,6 +91,17 @@ class ApiClient {
   async getStatistics() {
     return this.request('/statistics');
   }
+
+  // Admin
+  async getUsers() {
+    return this.request('/admin/users');
+  }
+
+  async deleteUser(id) {
+    return this.request(`/admin/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export default new ApiClient();

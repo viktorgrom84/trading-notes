@@ -10,6 +10,7 @@ import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import TradingNotes from './components/TradingNotes'
 import Statistics from './components/Statistics'
+import Admin from './components/Admin'
 import Navbar from './components/Navbar'
 import apiClient from './api'
 
@@ -58,12 +59,13 @@ function App() {
           >
             <Navbar user={user} onLogout={handleLogout} />
             <AppShell.Main>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/trades" element={<TradingNotes />} />
-                <Route path="/statistics" element={<Statistics />} />
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/trades" element={<TradingNotes />} />
+                    <Route path="/statistics" element={<Statistics />} />
+                    <Route path="/admin" element={<Admin />} />
+                    <Route path="*" element={<Navigate to="/" />} />
+                  </Routes>
             </AppShell.Main>
           </AppShell>
         ) : (
