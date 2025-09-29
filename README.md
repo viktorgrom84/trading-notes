@@ -1,126 +1,175 @@
 # Trading Notes App
 
-A modern React application for tracking trading performance and managing trading notes.
+A full-stack trading notes application built with React, Vite, and PostgreSQL. Track your trading performance with detailed notes, statistics, and charts.
 
-## Features
+## 🚀 Features
 
-- **User Authentication**: Login and register with username/password
-- **Trading Notes Management**: Add, edit, and delete trading positions
-- **Statistics Dashboard**: View comprehensive trading statistics
-- **Interactive Charts**: Visualize performance with line charts, bar charts, and pie charts
-- **Responsive Design**: Works on desktop and mobile devices
-- **Local Storage**: Data persists in browser localStorage
+- **User Authentication** - Secure login/registration with JWT tokens
+- **Trading Notes** - Add, edit, and delete trading entries
+- **Statistics Dashboard** - View profit/loss, win rate, and performance metrics
+- **Responsive Design** - Modern UI with Mantine components
+- **Real-time Data** - Connected to PostgreSQL database
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-- React 18
-- Vite (build tool)
-- React Router (navigation)
-- Recharts (charts)
-- Lucide React (icons)
-- CSS (styling)
+- **Frontend:** React 18, Vite, Mantine UI
+- **Backend:** Node.js, Express (local dev), Vercel Functions (production)
+- **Database:** PostgreSQL with Prisma Accelerate
+- **Authentication:** JWT tokens with bcrypt password hashing
+- **Charts:** Recharts for data visualization
 
-## Getting Started
+## 📦 Installation
 
-### Prerequisites
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd trading-notes
+   ```
 
-- Node.js (version 14 or higher)
-- npm or yarn
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-### Installation
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env.local
+   ```
+   
+   Add your database connection string to `.env.local`:
+   ```
+   viktor_POSTGRES_URL="your-postgres-connection-string"
+   JWT_SECRET="your-jwt-secret"
+   ```
 
-1. Clone the repository:
-```bash
-git clone <your-repo-url>
-cd trading-notes
-```
+## 🏃‍♂️ Development
 
-2. Install dependencies:
-```bash
-npm install
-```
+### **Local Development with Real Database**
 
-3. Start the development server:
-```bash
-npm run dev
-```
+1. **Start the local API server**
+   ```bash
+   npm run dev:api
+   ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+2. **Start the frontend** (in a new terminal)
+   ```bash
+   npm run dev
+   ```
 
-## Deployment to Vercel
+3. **Or run both together**
+   ```bash
+   npm run dev:full
+   ```
 
-### Option 1: Deploy via Vercel CLI
+4. **Open your browser** to `http://localhost:5173`
 
-1. Install Vercel CLI:
-```bash
-npm i -g vercel
-```
+### **API Endpoints**
 
-2. Build the project:
-```bash
-npm run build
-```
+The local API server runs on `http://localhost:3001` and provides:
 
-3. Deploy to Vercel:
-```bash
-vercel
-```
+- `POST /api/init-db` - Initialize database tables
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/trades` - Get user's trades
+- `POST /api/trades` - Create new trade
+- `PUT /api/trades/:id` - Update trade
+- `DELETE /api/trades/:id` - Delete trade
+- `GET /api/statistics` - Get trading statistics
 
-4. Follow the prompts to configure your deployment
+## 🚀 Production Deployment
 
-### Option 2: Deploy via Vercel Dashboard
+### **Vercel Deployment**
 
-1. Push your code to GitHub
-2. Go to [vercel.com](https://vercel.com)
-3. Sign in with your GitHub account
-4. Click "New Project"
-5. Import your repository
-6. Vercel will automatically detect it's a Vite project
-7. Click "Deploy"
+1. **Connect to Vercel**
+   ```bash
+   vercel link
+   ```
 
-### Option 3: Deploy via GitHub Integration
+2. **Set environment variables in Vercel dashboard:**
+   - `viktor_POSTGRES_URL` - Your PostgreSQL connection string
+   - `JWT_SECRET` - Your JWT secret key
 
-1. Connect your GitHub repository to Vercel
-2. Vercel will automatically deploy on every push to main branch
-3. You'll get a live URL for your app
+3. **Deploy**
+   ```bash
+   git push origin main
+   ```
 
-## Usage
+### **Database Setup**
 
-1. **Register/Login**: Create an account or login with existing credentials
-2. **Add Trades**: Use the "Trading Notes" page to add new trading positions
-3. **Track Performance**: View statistics and charts on the "Statistics" page
-4. **Dashboard**: Get an overview of your trading performance on the main dashboard
+The app uses Prisma Accelerate for database management:
 
-## Data Storage
+1. **Run migrations** (if needed)
+   ```bash
+   npx prisma migrate dev
+   ```
 
-The app uses browser localStorage to persist data. This means:
-- Data is stored locally in your browser
-- Data persists between sessions
-- Data is not shared between different browsers/devices
-- For production use, consider implementing a backend database
+2. **Generate Prisma client**
+   ```bash
+   npx prisma generate
+   ```
 
-## Project Structure
+## 📊 Database Schema
 
-```
-src/
-├── components/
-│   ├── Login.jsx          # Authentication component
-│   ├── Navbar.jsx         # Navigation bar
-│   ├── Dashboard.jsx      # Main dashboard
-│   ├── TradingNotes.jsx   # Trading notes management
-│   └── Statistics.jsx     # Statistics and charts
-├── App.jsx               # Main app component
-├── App.css              # Global styles
-└── main.jsx             # App entry point
-```
+### **Users Table**
+- `id` - Primary key
+- `username` - Unique username
+- `password_hash` - Hashed password
+- `created_at` - Account creation timestamp
 
-## Contributing
+### **Trades Table**
+- `id` - Primary key
+- `user_id` - Foreign key to users
+- `symbol` - Stock symbol (e.g., AAPL)
+- `shares` - Number of shares
+- `buy_price` - Purchase price per share
+- `buy_date` - Purchase date
+- `sell_price` - Sale price per share (optional)
+- `sell_date` - Sale date (optional)
+- `notes` - Additional notes (optional)
+- `created_at` - Trade creation timestamp
+- `updated_at` - Last update timestamp
+
+## 🔧 Configuration
+
+### **Environment Variables**
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `viktor_POSTGRES_URL` | PostgreSQL connection string | Yes |
+| `JWT_SECRET` | Secret key for JWT tokens | Yes |
+
+### **Vite Configuration**
+
+The app uses Vite with proxy configuration for local development:
+- Frontend: `http://localhost:5173`
+- API proxy: `http://localhost:3001`
+
+## 📱 Usage
+
+1. **Register** a new account or **login** with existing credentials
+2. **Add trading notes** with buy/sell information
+3. **View statistics** on the dashboard
+4. **Track performance** with detailed metrics
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Submit a pull request
+4. Test thoroughly
+5. Submit a pull request
 
-## License
+## 📄 License
 
-MIT License - feel free to use this project for personal or commercial purposes.
+This project is licensed under the MIT License.
+
+## 🆘 Support
+
+If you encounter any issues:
+
+1. Check the console for error messages
+2. Verify environment variables are set correctly
+3. Ensure the database connection is working
+4. Check the API server logs
+
+For additional help, please open an issue on GitHub.
