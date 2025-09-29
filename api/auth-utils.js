@@ -1,14 +1,4 @@
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-
-const verifyToken = (token) => {
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
-    return null;
-  }
-};
+import { verifyToken } from './auth.js';
 
 // Shared authentication utility for both local and Vercel APIs - Updated
 export const authenticateUser = (req) => {
