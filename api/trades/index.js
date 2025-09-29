@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { authenticateUser, handleAuthError } from '../auth-utils.js';
+import { verifyToken } from '../auth.js';
 
 const pool = new Pool({
   connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
@@ -10,8 +10,18 @@ const pool = new Pool({
 
 export default async function handler(req, res) {
   try {
-    const user = authenticateUser(req);
-    const userId = user.userId;
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+
+    const userId = decoded.userId;
 
     const client = await pool.connect();
     
@@ -43,6 +53,7 @@ export default async function handler(req, res) {
       client.release();
     }
   } catch (error) {
-    return handleAuthError(error, res);
+    console.error('Trades error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 }

@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { authenticateUser, handleAuthError } from '../auth-utils.js';
+import { verifyToken } from '../auth.js';
 
 const pool = new Pool({
   connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
@@ -10,17 +10,22 @@ const pool = new Pool({
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'viktorgrom84@gmail.com';
 
-
 export default async function handler(req, res) {
   try {
-    const user = authenticateUser(req);
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
 
-    if (user.username !== ADMIN_USERNAME) {
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+
+    if (decoded.username !== ADMIN_USERNAME) {
       return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
     }
-  } catch (error) {
-    return handleAuthError(error, res);
-  }
 
   try {
 
@@ -35,7 +40,7 @@ export default async function handler(req, res) {
       } else if (req.method === 'DELETE') {
         const { id } = req.query;
         
-        if (parseInt(id) === user.userId) {
+        if (parseInt(id) === decoded.userId) {
           return res.status(400).json({ message: 'Cannot delete your own account' });
         }
 
