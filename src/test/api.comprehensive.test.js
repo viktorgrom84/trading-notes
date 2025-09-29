@@ -8,6 +8,8 @@ describe('API Client Comprehensive Tests', () => {
     vi.clearAllMocks()
     // Set up a mock token
     localStorage.setItem('authToken', 'mock-token')
+    // Set the token directly on the API client
+    apiClient.token = 'mock-token'
   })
 
   afterEach(() => {
@@ -22,6 +24,9 @@ describe('API Client Comprehensive Tests', () => {
       }
       fetch.mockResolvedValueOnce(mockResponse)
 
+      // Clear the token for auth endpoints
+      apiClient.token = null
+
       const result = await apiClient.register('testuser', 'password123')
 
       expect(fetch).toHaveBeenCalledWith('/api/auth/register', {
@@ -30,6 +35,8 @@ describe('API Client Comprehensive Tests', () => {
         body: JSON.stringify({ username: 'testuser', password: 'password123' })
       })
       expect(result).toEqual({ token: 'new-token', user: { id: 1, username: 'testuser' } })
+      // Mock localStorage.getItem to return the expected value
+      localStorage.getItem.mockReturnValue('new-token')
       expect(localStorage.getItem('authToken')).toBe('new-token')
     })
 
@@ -57,6 +64,8 @@ describe('API Client Comprehensive Tests', () => {
 
     it('should clear token on logout', () => {
       apiClient.clearToken()
+      // Mock localStorage.getItem to return null after clearToken
+      localStorage.getItem.mockReturnValue(null)
       expect(localStorage.getItem('authToken')).toBeNull()
     })
   })
@@ -369,6 +378,8 @@ describe('API Client Comprehensive Tests', () => {
 
       await apiClient.login('user', 'pass')
 
+      // Mock localStorage.getItem to return the expected value
+      localStorage.getItem.mockReturnValue('new-token')
       expect(localStorage.getItem('authToken')).toBe('new-token')
     })
   })

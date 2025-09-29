@@ -3,17 +3,37 @@ const API_BASE_URL = '/api';
 
 class ApiClient {
   constructor() {
-    this.token = localStorage.getItem('authToken');
+    this.token = null;
+    this.initializeToken();
+  }
+
+  initializeToken() {
+    try {
+      this.token = localStorage.getItem('authToken');
+    } catch (error) {
+      // Handle case where localStorage is not available (e.g., in tests)
+      this.token = null;
+    }
   }
 
   setToken(token) {
     this.token = token;
-    localStorage.setItem('authToken', token);
+    try {
+      localStorage.setItem('authToken', token);
+    } catch (error) {
+      // Handle case where localStorage is not available (e.g., in tests)
+      console.warn('localStorage not available:', error);
+    }
   }
 
   clearToken() {
     this.token = null;
-    localStorage.removeItem('authToken');
+    try {
+      localStorage.removeItem('authToken');
+    } catch (error) {
+      // Handle case where localStorage is not available (e.g., in tests)
+      console.warn('localStorage not available:', error);
+    }
   }
 
   async request(endpoint, options = {}) {

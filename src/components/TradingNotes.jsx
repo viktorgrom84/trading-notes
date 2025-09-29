@@ -257,7 +257,7 @@ const TradingNotes = () => {
     return trade.sell_price && trade.sell_date ? 'closed' : 'open'
   }
 
-  const filteredTrades = trades.filter(trade => {
+  const filteredTrades = (trades || []).filter(trade => {
     const matchesSearch = trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (trade.notes && trade.notes.toLowerCase().includes(searchTerm.toLowerCase()))
     const matchesFilter = filterStatus === 'all' || getStatus(trade) === filterStatus
@@ -342,7 +342,7 @@ const TradingNotes = () => {
             <Skeleton height={32} width={300} mb="sm" />
             <Skeleton height={20} width={400} />
           </div>
-          <Skeleton height={400} />
+          <Skeleton height={400} data-testid="skeleton" />
         </Stack>
       </Container>
     )

@@ -57,6 +57,9 @@ describe('TradingNotes Component', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiClient.getTrades.mockResolvedValue(mockTrades)
+    apiClient.createTrade.mockResolvedValue({ id: 3, ...mockTrades[0] })
+    apiClient.updateTrade.mockResolvedValue({ id: 1, ...mockTrades[0] })
+    apiClient.deleteTrade.mockResolvedValue({})
   })
 
   it('should render trading notes page', async () => {
