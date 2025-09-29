@@ -14,7 +14,7 @@ A full-stack trading notes application built with React, Vite, and PostgreSQL. T
 
 - **Frontend:** React 18, Vite, Mantine UI
 - **Backend:** Node.js, Express (local dev), Vercel Functions (production)
-- **Database:** PostgreSQL with Prisma Accelerate
+- **Database:** PostgreSQL with node-postgres
 - **Authentication:** JWT tokens with bcrypt password hashing
 - **Charts:** Recharts for data visualization
 
@@ -32,14 +32,12 @@ A full-stack trading notes application built with React, Vite, and PostgreSQL. T
    ```
 
 3. **Set up environment variables**
-   ```bash
-   cp .env.example .env.local
-   ```
    
-   Add your database connection string to `.env.local`:
+   Create a `.env` file in the root directory:
    ```
    viktor_POSTGRES_URL="your-postgres-connection-string"
    JWT_SECRET="your-jwt-secret"
+   ADMIN_USERNAME="your-admin-email@example.com"
    ```
 
 ## 🏃‍♂️ Development
@@ -88,6 +86,7 @@ The local API server runs on `http://localhost:3001` and provides:
 2. **Set environment variables in Vercel dashboard:**
    - `viktor_POSTGRES_URL` - Your PostgreSQL connection string
    - `JWT_SECRET` - Your JWT secret key
+   - `ADMIN_USERNAME` - Admin user email for admin panel access
 
 3. **Deploy**
    ```bash
@@ -96,17 +95,12 @@ The local API server runs on `http://localhost:3001` and provides:
 
 ### **Database Setup**
 
-The app uses Prisma Accelerate for database management:
+The app uses PostgreSQL with node-postgres for database management:
 
-1. **Run migrations** (if needed)
-   ```bash
-   npx prisma migrate dev
-   ```
-
-2. **Generate Prisma client**
-   ```bash
-   npx prisma generate
-   ```
+1. **Initialize database tables**
+   Visit: `https://your-app.vercel.app/api/init-db`
+   
+   Or locally: `http://localhost:3001/api/init-db`
 
 ## 📊 Database Schema
 
@@ -137,6 +131,7 @@ The app uses Prisma Accelerate for database management:
 |----------|-------------|----------|
 | `viktor_POSTGRES_URL` | PostgreSQL connection string | Yes |
 | `JWT_SECRET` | Secret key for JWT tokens | Yes |
+| `ADMIN_USERNAME` | Admin user email for admin panel | Yes |
 
 ### **Vite Configuration**
 
