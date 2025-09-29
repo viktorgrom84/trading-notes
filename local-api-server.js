@@ -270,7 +270,7 @@ const ADMIN_USERNAME = 'viktorgrom84@gmail.com';
 // Get all users (admin only)
 app.get('/api/admin/users', authenticateToken, async (req, res) => {
   try {
-    console.log("🚀 ~ req.user:", req.user)
+    console.log("🚀 ~ req.user:", req.user.username)
     // Check if user is admin
     if (req.user.username !== ADMIN_USERNAME) {
       return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
