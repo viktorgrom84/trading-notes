@@ -1,5 +1,5 @@
 // Admin utility functions
-export const ADMIN_USERNAME = 'viktorgrom84@gmail.com';
+export const ADMIN_USERNAME = 'admin@test.com';
 
 export const isAdmin = (username) => {
   return username === ADMIN_USERNAME;
