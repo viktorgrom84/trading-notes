@@ -45,6 +45,7 @@ const Admin = () => {
     try {
       setLoading(true);
       const usersData = await apiClient.getUsers();
+      console.log(usersData);
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);

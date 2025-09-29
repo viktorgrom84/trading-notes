@@ -265,11 +265,12 @@ app.delete('/api/trades/:id', authenticateToken, async (req, res) => {
 });
 
 // Admin endpoints
-const ADMIN_USERNAME = 'admin@test.com';
+const ADMIN_USERNAME = 'viktorgrom84@gmail.com';
 
 // Get all users (admin only)
 app.get('/api/admin/users', authenticateToken, async (req, res) => {
   try {
+    console.log("🚀 ~ req.user:", req.user)
     // Check if user is admin
     if (req.user.username !== ADMIN_USERNAME) {
       return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
@@ -377,7 +378,6 @@ app.get('/api/statistics', authenticateToken, async (req, res) => {
 // Start server
 app.listen(PORT, async () => {
   console.log(`🚀 Local API server running on http://localhost:${PORT}`);
-  console.log('🔗 API endpoints available at:');
   console.log(`   POST http://localhost:${PORT}/api/init-db`);
   console.log(`   POST http://localhost:${PORT}/api/auth/register`);
   console.log(`   POST http://localhost:${PORT}/api/auth/login`);
