@@ -1,4 +1,4 @@
-import { getTradeById, updateTrade, deleteTrade } from '../db-prisma.js';
+import { getTradeById, updateTrade, deleteTrade } from '../db-pg.js';
 import { verifyToken, getTokenFromRequest } from '../auth.js';
 
 export default async function handler(req, res) {

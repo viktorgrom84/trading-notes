@@ -1,4 +1,4 @@
-import { getUserByUsername } from '../db-prisma.js';
+import { getUserByUsername } from '../db-pg.js';
 import { comparePassword, generateToken } from '../auth.js';
 
 export default async function handler(req, res) {

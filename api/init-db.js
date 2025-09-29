@@ -1,4 +1,4 @@
-import { initDatabase } from './db-prisma.js';
+import { initDatabase } from './db-pg.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST' && req.method !== 'GET') {
