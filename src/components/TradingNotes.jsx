@@ -63,13 +63,13 @@ const TradingNotes = () => {
       sellPrice: '',
       sellDate: '',
       notes: '',
-      profit: 0
+      profit: undefined
     },
     validate: (values) => {
       if (isProfitOnlyMode) {
         return {
           symbol: (!values.symbol ? 'Symbol is required' : null),
-          profit: (values.profit === 0 ? 'Profit/Loss is required' : null),
+          profit: (values.profit === undefined || values.profit === null || values.profit === '' ? 'Profit/Loss is required' : null),
           buyDate: (!values.buyDate ? 'Trade date is required' : null),
         }
       } else {
@@ -109,16 +109,12 @@ const TradingNotes = () => {
       let tradeData;
       
       if (isProfitOnlyMode) {
-        // For profit-only mode, we'll store the profit as a completed trade
-        // with dummy values for shares and prices
+        // For profit-only mode, send profit field to backend
         tradeData = {
           symbol: values.symbol.toUpperCase(),
-          shares: 1, // Dummy value
-          buyPrice: 0, // Dummy value
-          sellPrice: parseFloat(values.profit), // Store profit as sell price
+          profit: parseFloat(values.profit),
           buyDate: values.buyDate,
-          sellDate: values.buyDate, // Same date for both
-          notes: values.notes || `Profit-only trade: ${values.profit > 0 ? '+' : ''}${values.profit}`
+          notes: values.notes || null
         }
       } else {
         // Regular mode
@@ -176,7 +172,7 @@ const TradingNotes = () => {
     if (isProfitOnlyTrade) {
       form.setValues({
         symbol: trade.symbol,
-        profit: trade.sell_price || 0,
+        profit: trade.sell_price || undefined,
         buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
         notes: trade.notes ? trade.notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : '',
         // Set dummy values for regular fields
@@ -195,7 +191,7 @@ const TradingNotes = () => {
         sellDate: trade.sell_date ? new Date(trade.sell_date).toISOString().split('T')[0] : '',
         notes: trade.notes || '',
         // Set dummy values for profit-only fields
-        profit: 0
+        profit: undefined
       })
     }
     open()

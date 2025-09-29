@@ -35,12 +35,17 @@ export default async function handler(req, res) {
       } else if (req.method === 'POST') {
         const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit } = req.body;
 
-        // Check if this is a profit-only trade
-        const isProfitOnlyTrade = profit !== undefined;
+        // Debug logging
+        console.log('Received trade data:', req.body);
+        console.log('Profit value:', profit);
+        console.log('Is profit only trade:', profit !== undefined);
+
+        // Check if this is a profit-only trade (profit field exists, even if 0)
+        const isProfitOnlyTrade = profit !== undefined && profit !== null;
         
         if (isProfitOnlyTrade) {
           // Profit-only trade validation
-          if (!symbol || profit === undefined || !buyDate) {
+          if (!symbol || (profit === undefined || profit === null) || !buyDate) {
             return res.status(400).json({ message: 'Symbol, profit, and buy date are required for profit-only trades' });
           }
           
