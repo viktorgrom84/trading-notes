@@ -1,71 +1,68 @@
-import { getTradeById, updateTrade, deleteTrade } from '../db-pg.js';
-import { verifyToken, getTokenFromRequest } from '../auth.js';
+import { Pool } from 'pg';
+import { verifyToken } from '../auth.js';
+
+// Create connection pool for Vercel
+const pool = new Pool({
+  connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   try {
     // Verify authentication
-    const token = getTokenFromRequest(req);
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const token = authHeader.substring(7);
     const decoded = verifyToken(token);
-    
     if (!decoded) {
-      return res.status(401).json({ message: 'Invalid or missing token' });
+      return res.status(401).json({ message: 'Invalid token' });
     }
 
     const { id } = req.query;
-    const tradeId = parseInt(id);
+    const client = await pool.connect();
+    
+    try {
+      if (req.method === 'PUT') {
+        // Update trade
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = req.body;
 
-    if (req.method === 'GET') {
-      // Get specific trade
-      const trade = await getTradeById(tradeId, decoded.userId);
-      if (!trade) {
-        return res.status(404).json({ message: 'Trade not found' });
+        const result = await client.query(
+          `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
+           buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $8 AND user_id = $9 RETURNING *`,
+          [symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, id, decoded.userId]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ message: 'Trade not found' });
+        }
+
+        res.json(result.rows[0]);
+      } else if (req.method === 'DELETE') {
+        // Delete trade
+        const result = await client.query(
+          'DELETE FROM trades WHERE id = $1 AND user_id = $2 RETURNING id',
+          [id, decoded.userId]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ message: 'Trade not found' });
+        }
+
+        res.json({ message: 'Trade deleted successfully' });
+      } else {
+        res.status(405).json({ message: 'Method not allowed' });
       }
-      res.json(trade);
-    } else if (req.method === 'PUT') {
-      // Update trade
-      const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = req.body;
-
-      // Validate required fields
-      if (!symbol || !shares || !buyPrice || !buyDate) {
-        return res.status(400).json({ message: 'Symbol, shares, buy price, and buy date are required' });
-      }
-
-      const trade = await updateTrade(tradeId, decoded.userId, {
-        symbol,
-        shares: parseInt(shares),
-        buyPrice: parseFloat(buyPrice),
-        buyDate,
-        sellPrice: sellPrice ? parseFloat(sellPrice) : null,
-        sellDate: sellDate || null,
-        notes: notes || null
-      });
-
-      if (!trade) {
-        return res.status(404).json({ message: 'Trade not found' });
-      }
-
-      res.json(trade);
-    } else if (req.method === 'DELETE') {
-      // Delete trade
-      const result = await deleteTrade(tradeId, decoded.userId);
-      if (!result) {
-        return res.status(404).json({ message: 'Trade not found' });
-      }
-      res.json({ message: 'Trade deleted successfully' });
-    } else {
-      res.status(405).json({ message: 'Method not allowed' });
+    } finally {
+      client.release();
     }
   } catch (error) {
-    console.error('Trade API error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Trade operation error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 }

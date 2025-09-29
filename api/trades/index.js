@@ -1,54 +1,63 @@
-import { getTradesByUserId, createTrade } from '../db-pg.js';
-import { verifyToken, getTokenFromRequest } from '../auth.js';
+import { Pool } from 'pg';
+import { verifyToken } from '../auth.js';
+
+// Create connection pool for Vercel
+const pool = new Pool({
+  connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   try {
     // Verify authentication
-    const token = getTokenFromRequest(req);
-    const decoded = verifyToken(token);
-    
-    if (!decoded) {
-      return res.status(401).json({ message: 'Invalid or missing token' });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
     }
 
-    if (req.method === 'GET') {
-      // Get all trades for user
-      const trades = await getTradesByUserId(decoded.userId);
-      res.json(trades);
-    } else if (req.method === 'POST') {
-      // Create new trade
-      const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = req.body;
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
 
-      // Validate required fields
-      if (!symbol || !shares || !buyPrice || !buyDate) {
-        return res.status(400).json({ message: 'Symbol, shares, buy price, and buy date are required' });
+    const client = await pool.connect();
+    
+    try {
+      if (req.method === 'GET') {
+        // Get all trades for user
+        const result = await client.query(
+          'SELECT * FROM trades WHERE user_id = $1 ORDER BY created_at DESC',
+          [decoded.userId]
+        );
+
+        res.json(result.rows);
+      } else if (req.method === 'POST') {
+        // Create new trade
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes } = req.body;
+
+        // Validate required fields
+        if (!symbol || !shares || !buyPrice || !buyDate) {
+          return res.status(400).json({ message: 'Symbol, shares, buy price, and buy date are required' });
+        }
+
+        const result = await client.query(
+          `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+          [decoded.userId, symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes]
+        );
+
+        res.status(201).json(result.rows[0]);
+      } else {
+        res.status(405).json({ message: 'Method not allowed' });
       }
-
-      const trade = await createTrade(decoded.userId, {
-        symbol,
-        shares: parseInt(shares),
-        buyPrice: parseFloat(buyPrice),
-        buyDate,
-        sellPrice: sellPrice ? parseFloat(sellPrice) : null,
-        sellDate: sellDate || null,
-        notes: notes || null
-      });
-
-      res.status(201).json(trade);
-    } else {
-      res.status(405).json({ message: 'Method not allowed' });
+    } finally {
+      client.release();
     }
   } catch (error) {
-    console.error('Trades API error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Trades error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 }
