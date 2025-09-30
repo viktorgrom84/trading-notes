@@ -36,10 +36,44 @@ export default async function handler(req, res) {
           sell_price DECIMAL(10,2),
           sell_date DATE,
           notes TEXT,
+          position_type VARCHAR(10) DEFAULT 'long' CHECK (position_type IN ('long', 'short')),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+
+      // Add position_type column if it doesn't exist (migration)
+      try {
+        // First check if column exists
+        const columnCheck = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'trades' AND column_name = 'position_type'
+        `);
+        
+        if (columnCheck.rows.length === 0) {
+          console.log('Adding position_type column...');
+          await client.query(`
+            ALTER TABLE trades 
+            ADD COLUMN position_type VARCHAR(10) CHECK (position_type IN ('long', 'short'))
+          `);
+          console.log('✅ position_type column added successfully');
+        } else {
+          console.log('ℹ️ position_type column already exists, updating default value...');
+          // Try to remove the default value
+          try {
+            await client.query(`
+              ALTER TABLE trades 
+              ALTER COLUMN position_type DROP DEFAULT
+            `);
+            console.log('✅ Removed default value from position_type column');
+          } catch (error) {
+            console.log('ℹ️ Could not remove default value:', error.message);
+          }
+        }
+      } catch (error) {
+        console.log('❌ Error with position_type column:', error.message);
+      }
 
       res.json({ message: 'Database initialized successfully' });
     } finally {

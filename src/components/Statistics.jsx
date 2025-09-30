@@ -83,7 +83,16 @@ const Statistics = () => {
   }
 
   const getCompletedTrades = () => {
-    return getFilteredTrades().filter(trade => trade.sell_price && trade.sell_date)
+    return getFilteredTrades().filter(trade => {
+      const isShort = trade.position_type === 'short'
+      if (isShort) {
+        // For short positions, need both entry (sell) and exit (buy) prices
+        return trade.sell_price && trade.sell_date && trade.buy_price && trade.buy_date
+      } else {
+        // For long positions, need sell price and date
+        return trade.sell_price && trade.sell_date
+      }
+    })
   }
 
   const calculateStats = () => {
@@ -103,8 +112,20 @@ const Statistics = () => {
     }
 
     const profits = completedTrades.map(trade => {
-      const profit = (trade.sell_price - trade.buy_price) * trade.shares
-      const volume = trade.buy_price * trade.shares
+      const isShort = trade.position_type === 'short'
+      let profit, volume
+      
+      if (isShort) {
+        // For short positions: profit = (sell_price - buy_price) * shares
+        // sell_price is entry (when we sold short), buy_price is exit (when we bought to cover)
+        profit = (trade.sell_price - trade.buy_price) * trade.shares
+        volume = trade.sell_price * trade.shares // Use sell_price for volume calculation
+      } else {
+        // For long positions: profit = (sell_price - buy_price) * shares
+        profit = (trade.sell_price - trade.buy_price) * trade.shares
+        volume = trade.buy_price * trade.shares
+      }
+      
       return { profit, volume, trade }
     })
 
@@ -133,7 +154,10 @@ const Statistics = () => {
     
     let cumulativeProfit = 0
     return sortedTrades.map(trade => {
-      const profit = (trade.sell_price - trade.buy_price) * trade.shares
+      const isShort = trade.position_type === 'short'
+      const profit = isShort 
+        ? (trade.sell_price - trade.buy_price) * trade.shares
+        : (trade.sell_price - trade.buy_price) * trade.shares
       cumulativeProfit += profit
       return {
         date: new Date(trade.buy_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -152,7 +176,11 @@ const Statistics = () => {
       if (!symbolMap[trade.symbol]) {
         symbolMap[trade.symbol] = { profit: 0, count: 0 }
       }
-      symbolMap[trade.symbol].profit += (trade.sell_price - trade.buy_price) * trade.shares
+      const isShort = trade.position_type === 'short'
+      const profit = isShort 
+        ? (trade.sell_price - trade.buy_price) * trade.shares
+        : (trade.sell_price - trade.buy_price) * trade.shares
+      symbolMap[trade.symbol].profit += profit
       symbolMap[trade.symbol].count += 1
     })
 
@@ -165,9 +193,13 @@ const Statistics = () => {
 
   const getWinLossData = () => {
     const completedTrades = getCompletedTrades()
-    const winning = completedTrades.filter(trade => 
-      (trade.sell_price - trade.buy_price) * trade.shares > 0
-    ).length
+    const winning = completedTrades.filter(trade => {
+      const isShort = trade.position_type === 'short'
+      const profit = isShort 
+        ? (trade.sell_price - trade.buy_price) * trade.shares
+        : (trade.sell_price - trade.buy_price) * trade.shares
+      return profit > 0
+    }).length
     const losing = completedTrades.length - winning
 
     return [
@@ -359,7 +391,7 @@ const Statistics = () => {
           <Grid.Col span={{ base: 12, lg: 4 }}>
             <Card withBorder p="xl">
               <Title order={3} mb="md">Win/Loss Distribution</Title>
-              <Box h={300}>
+              <Box h={350}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -367,8 +399,11 @@ const Statistics = () => {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
+                      label={({ name, percent }) => {
+                        const shortName = name === 'Winning Trades' ? 'Wins' : 'Losses'
+                        return `${shortName}: ${(percent * 100).toFixed(0)}%`
+                      }}
+                      outerRadius={90}
                       fill="#8884d8"
                       dataKey="value"
                     >
@@ -376,7 +411,12 @@ const Statistics = () => {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value, name) => [
+                        value, 
+                        name === 'Winning Trades' ? 'Winning Trades' : 'Losing Trades'
+                      ]}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </Box>

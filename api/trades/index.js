@@ -9,6 +9,18 @@ const pool = new Pool({
 });
 
 export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -33,12 +45,22 @@ export default async function handler(req, res) {
         );
         res.json(result.rows);
       } else if (req.method === 'POST') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit } = req.body;
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, position_type, isShort } = req.body;
+        const finalPositionType = positionType || position_type || (isShort ? 'short' : 'long');
 
         // Debug logging
-        console.log('Received trade data:', req.body);
+        console.log('=== TRADE CREATION DEBUG ===');
+        console.log('Full request body:', JSON.stringify(req.body, null, 2));
+        console.log('Extracted positionType:', positionType);
+        console.log('Extracted position_type:', position_type);
+        console.log('Extracted isShort:', isShort);
+        console.log('Final position type:', finalPositionType);
+        console.log('Type of finalPositionType:', typeof finalPositionType);
+        console.log('Final position type === "short":', finalPositionType === 'short');
+        console.log('Final position type === "long":', finalPositionType === 'long');
         console.log('Profit value:', profit);
         console.log('Is profit only trade:', profit !== undefined);
+        console.log('============================');
 
         // Check if this is a profit-only trade (profit field exists, even if 0)
         const isProfitOnlyTrade = profit !== undefined && profit !== null;
@@ -51,9 +73,9 @@ export default async function handler(req, res) {
           
           // For profit-only trades, store profit as sell_price with dummy values
           const result = await client.query(
-            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-            [userId, symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`]
+            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            [userId, symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, finalPositionType]
           );
           
           res.status(201).json(result.rows[0]);
@@ -64,9 +86,9 @@ export default async function handler(req, res) {
           }
 
           const result = await client.query(
-            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-            [userId, symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes]
+            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            [userId, symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, finalPositionType]
           );
 
           res.status(201).json(result.rows[0]);

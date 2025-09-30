@@ -24,7 +24,8 @@ import {
   Divider,
   Skeleton,
   Switch,
-  SegmentedControl
+  SegmentedControl,
+  Tooltip
 } from '@mantine/core'
 import { 
   IconPlus, 
@@ -63,7 +64,8 @@ const TradingNotes = () => {
       sellPrice: '',
       sellDate: '',
       notes: '',
-      profit: undefined
+      profit: undefined,
+      positionType: 'long'
     },
     validate: (values) => {
       if (isProfitOnlyMode) {
@@ -110,14 +112,18 @@ const TradingNotes = () => {
       
       if (isProfitOnlyMode) {
         // For profit-only mode, send profit field to backend
+        const isShort = values.positionType === 'short'
         tradeData = {
           symbol: values.symbol.toUpperCase(),
           profit: parseFloat(values.profit),
           buyDate: values.buyDate,
-          notes: values.notes || null
+          notes: values.notes || null,
+          positionType: values.positionType || 'long',
+          isShort: isShort
         }
       } else {
         // Regular mode
+        const isShort = values.positionType === 'short'
         tradeData = {
           symbol: values.symbol.toUpperCase(),
           shares: parseInt(values.shares),
@@ -125,7 +131,9 @@ const TradingNotes = () => {
           sellPrice: values.sellPrice ? parseFloat(values.sellPrice) : null,
           buyDate: values.buyDate,
           sellDate: values.sellDate || null,
-          notes: values.notes || null
+          notes: values.notes || null,
+          positionType: values.positionType || 'long',
+          isShort: isShort
         }
       }
 
@@ -175,6 +183,7 @@ const TradingNotes = () => {
         profit: trade.sell_price || undefined,
         buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
         notes: trade.notes ? trade.notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : '',
+        positionType: trade.position_type || 'long',
         // Set dummy values for regular fields
         shares: 0,
         buyPrice: 0,
@@ -190,6 +199,7 @@ const TradingNotes = () => {
         sellPrice: trade.sell_price || '',
         sellDate: trade.sell_date ? new Date(trade.sell_date).toISOString().split('T')[0] : '',
         notes: trade.notes || '',
+        positionType: trade.position_type || 'long',
         // Set dummy values for profit-only fields
         profit: undefined
       })
@@ -228,7 +238,13 @@ const TradingNotes = () => {
   }
 
   const getProfit = (trade) => {
-    if (!trade.sell_price || !trade.sell_date) return null
+    // For short positions, check if we have both entry (sell) and exit (buy) prices
+    const isShort = trade.position_type === 'short'
+    if (isShort) {
+      if (!trade.sell_price || !trade.buy_price || !trade.sell_date || !trade.buy_date) return null
+    } else {
+      if (!trade.sell_price || !trade.sell_date) return null
+    }
     
     // Check if this is a profit-only trade
     const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
@@ -236,10 +252,21 @@ const TradingNotes = () => {
                              trade.notes && trade.notes.includes('Profit-only trade')
     
     if (isProfitOnlyTrade) {
-      return trade.sell_price // For profit-only trades, sell_price contains the profit
+      // For profit-only trades, sell_price contains the profit
+      // But we need to consider position type for proper display
+      return trade.sell_price
     }
     
-    return (trade.sell_price - trade.buy_price) * trade.shares
+    // Calculate profit based on position type
+    if (isShort) {
+      // For short positions: profit = (sell_price - buy_price) * shares
+      // sell_price is the entry price (when we sold short)
+      // buy_price is the exit price (when we bought to cover)
+      return (trade.sell_price - trade.buy_price) * trade.shares
+    } else {
+      // For long positions: profit = (sell_price - buy_price) * shares
+      return (trade.sell_price - trade.buy_price) * trade.shares
+    }
   }
 
   const getProfitColor = (profit) => {
@@ -254,7 +281,14 @@ const TradingNotes = () => {
   }
 
   const getStatus = (trade) => {
-    return trade.sell_price && trade.sell_date ? 'closed' : 'open'
+    const isShort = trade.position_type === 'short'
+    if (isShort) {
+      // For short positions, closed when we have both entry (sell) and exit (buy) prices
+      return trade.sell_price && trade.sell_date && trade.buy_price && trade.buy_date ? 'closed' : 'open'
+    } else {
+      // For long positions, closed when we have sell price and date
+      return trade.sell_price && trade.sell_date ? 'closed' : 'open'
+    }
   }
 
   const filteredTrades = (trades || []).filter(trade => {
@@ -270,12 +304,24 @@ const TradingNotes = () => {
     const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
                              trade.buy_date === trade.sell_date && 
                              trade.notes && trade.notes.includes('Profit-only trade')
+    const isShort = trade.position_type === 'short'
     
     return (
       <Table.Tr key={trade.id}>
         <Table.Td>
           <Group gap="sm">
-            <Text fw={600}>{trade.symbol}</Text>
+            <Tooltip
+              label={trade.notes}
+              position="top"
+              withArrow
+              multiline
+              w={300}
+              disabled={!trade.notes || trade.notes.trim() === ''}
+            >
+              <Text fw={600} style={{ cursor: (trade.notes && trade.notes.trim() !== '') ? 'help' : 'default' }}>
+                {trade.symbol}
+              </Text>
+            </Tooltip>
             <Badge 
               color={status === 'open' ? 'blue' : 'gray'}
               variant="light"
@@ -286,17 +332,29 @@ const TradingNotes = () => {
           </Group>
         </Table.Td>
         <Table.Td>
+          <Badge 
+            color={isShort ? 'red' : 'green'}
+            variant="light"
+            size="sm"
+            leftSection={isShort ? <IconTrendingDown size={12} /> : <IconTrendingUp size={12} />}
+          >
+            {isShort ? 'Short' : 'Long'}
+          </Badge>
+        </Table.Td>
+        <Table.Td>
           {isProfitOnlyTrade ? '-' : trade.shares}
         </Table.Td>
         <Table.Td>
-          {isProfitOnlyTrade ? '-' : formatCurrency(trade.buy_price)}
-        </Table.Td>
-        <Table.Td>{formatDate(trade.buy_date)}</Table.Td>
-        <Table.Td>
-          {isProfitOnlyTrade ? '-' : (trade.sell_price ? formatCurrency(trade.sell_price) : '-')}
+          {isProfitOnlyTrade ? '-' : (isShort ? formatCurrency(trade.sell_price) : formatCurrency(trade.buy_price))}
         </Table.Td>
         <Table.Td>
-          {isProfitOnlyTrade ? '-' : (trade.sell_date ? formatDate(trade.sell_date) : '-')}
+          {isProfitOnlyTrade ? '-' : (isShort ? formatDate(trade.sell_date) : formatDate(trade.buy_date))}
+        </Table.Td>
+        <Table.Td>
+          {isProfitOnlyTrade ? '-' : (isShort ? (trade.buy_price ? formatCurrency(trade.buy_price) : '-') : (trade.sell_price ? formatCurrency(trade.sell_price) : '-'))}
+        </Table.Td>
+        <Table.Td>
+          {isProfitOnlyTrade ? '-' : (isShort ? (trade.buy_date ? formatDate(trade.buy_date) : '-') : (trade.sell_date ? formatDate(trade.sell_date) : '-'))}
         </Table.Td>
         <Table.Td>
           {profit !== null ? (
@@ -408,11 +466,12 @@ const TradingNotes = () => {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Symbol</Table.Th>
+                    <Table.Th>Type</Table.Th>
                     <Table.Th>Shares</Table.Th>
-                    <Table.Th>Buy Price</Table.Th>
-                    <Table.Th>Buy Date</Table.Th>
-                    <Table.Th>Sell Price</Table.Th>
-                    <Table.Th>Sell Date</Table.Th>
+                    <Table.Th>Entry Price</Table.Th>
+                    <Table.Th>Entry Date</Table.Th>
+                    <Table.Th>Exit Price</Table.Th>
+                    <Table.Th>Exit Date</Table.Th>
                     <Table.Th>Profit/Loss</Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
@@ -502,12 +561,25 @@ const TradingNotes = () => {
                       {...form.getInputProps('profit')}
                     />
                   </Grid.Col>
-                  <Grid.Col span={12}>
+                  <Grid.Col span={6}>
                     <TextInput
                       label="Trade Date"
                       type="date"
                       {...form.getInputProps('buyDate')}
                     />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <div>
+                      <Text size="sm" fw={500} mb="xs">Position Type</Text>
+                      <SegmentedControl
+                        data={[
+                          { label: 'Long', value: 'long' },
+                          { label: 'Short', value: 'short' }
+                        ]}
+                        value={form.values.positionType}
+                        onChange={(value) => form.setFieldValue('positionType', value)}
+                      />
+                    </div>
                   </Grid.Col>
                 </Grid>
               ) : (
@@ -528,40 +600,100 @@ const TradingNotes = () => {
                       {...form.getInputProps('shares')}
                     />
                   </Grid.Col>
-                  <Grid.Col span={6}>
-                    <NumberInput
-                      label="Buy Price"
-                      placeholder="0.00"
-                      min={0}
-                      decimalScale={2}
-                      prefix="$"
-                      {...form.getInputProps('buyPrice')}
-                    />
+                  
+                  {/* Position Type Selector */}
+                  <Grid.Col span={12}>
+                    <div>
+                      <Text size="sm" fw={500} mb="xs">Position Type</Text>
+                      <SegmentedControl
+                        data={[
+                          { label: 'Long', value: 'long' },
+                          { label: 'Short', value: 'short' }
+                        ]}
+                        value={form.values.positionType}
+                        onChange={(value) => form.setFieldValue('positionType', value)}
+                      />
+                    </div>
                   </Grid.Col>
-                  <Grid.Col span={6}>
-                    <TextInput
-                      label="Buy Date"
-                      type="date"
-                      {...form.getInputProps('buyDate')}
-                    />
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <NumberInput
-                      label="Sell Price"
-                      placeholder="0.00"
-                      min={0}
-                      decimalScale={2}
-                      prefix="$"
-                      {...form.getInputProps('sellPrice')}
-                    />
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <TextInput
-                      label="Sell Date"
-                      type="date"
-                      {...form.getInputProps('sellDate')}
-                    />
-                  </Grid.Col>
+
+                  {/* Dynamic fields based on position type */}
+                  {form.values.positionType === 'short' ? (
+                    // Short position: Sell first, then buy
+                    <>
+                      <Grid.Col span={6}>
+                        <NumberInput
+                          label="Sell Price (Entry)"
+                          placeholder="0.00"
+                          min={0}
+                          decimalScale={2}
+                          prefix="$"
+                          {...form.getInputProps('sellPrice')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <NumberInput
+                          label="Buy Price (Exit)"
+                          placeholder="0.00"
+                          min={0}
+                          decimalScale={2}
+                          prefix="$"
+                          {...form.getInputProps('buyPrice')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <TextInput
+                          label="Sell Date (Entry)"
+                          type="date"
+                          {...form.getInputProps('sellDate')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <TextInput
+                          label="Buy Date (Exit)"
+                          type="date"
+                          {...form.getInputProps('buyDate')}
+                        />
+                      </Grid.Col>
+                    </>
+                  ) : (
+                    // Long position: Buy first, then sell
+                    <>
+                      <Grid.Col span={6}>
+                        <NumberInput
+                          label="Buy Price (Entry)"
+                          placeholder="0.00"
+                          min={0}
+                          decimalScale={2}
+                          prefix="$"
+                          {...form.getInputProps('buyPrice')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <NumberInput
+                          label="Sell Price (Exit)"
+                          placeholder="0.00"
+                          min={0}
+                          decimalScale={2}
+                          prefix="$"
+                          {...form.getInputProps('sellPrice')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <TextInput
+                          label="Buy Date (Entry)"
+                          type="date"
+                          {...form.getInputProps('buyDate')}
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <TextInput
+                          label="Sell Date (Exit)"
+                          type="date"
+                          {...form.getInputProps('sellDate')}
+                        />
+                      </Grid.Col>
+                    </>
+                  )}
                 </Grid>
               )}
               

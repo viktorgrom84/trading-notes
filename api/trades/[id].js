@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     
     try {
       if (req.method === 'PUT') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit } = req.body;
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType } = req.body;
 
         // Check if this is a profit-only trade
         const isProfitOnlyTrade = profit !== undefined;
@@ -37,9 +37,9 @@ export default async function handler(req, res) {
           // Profit-only trade update
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
-             buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
-             WHERE id = $8 AND user_id = $9 RETURNING *`,
-            [symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, id, userId]
+             buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $9 AND user_id = $10 RETURNING *`,
+            [symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, positionType || 'long', id, userId]
           );
 
           if (result.rows.length === 0) {
@@ -51,9 +51,9 @@ export default async function handler(req, res) {
           // Regular trade update
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
-             buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
-             WHERE id = $8 AND user_id = $9 RETURNING *`,
-            [symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, id, userId]
+             buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $9 AND user_id = $10 RETURNING *`,
+            [symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, positionType || 'long', id, userId]
           );
 
           if (result.rows.length === 0) {

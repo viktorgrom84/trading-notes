@@ -63,7 +63,7 @@ A full-stack trading notes application built with React, Vite, and PostgreSQL. T
 
 ### **API Endpoints**
 
-The local API server runs on `http://localhost:3001` and provides:
+The application uses Vercel serverless functions for the API:
 
 - `POST /api/init-db` - Initialize database tables
 - `POST /api/auth/register` - User registration
@@ -99,8 +99,6 @@ The app uses PostgreSQL with node-postgres for database management:
 
 1. **Initialize database tables**
    Visit: `https://your-app.vercel.app/api/init-db`
-   
-   Or locally: `http://localhost:3001/api/init-db`
 
 ## 📊 Database Schema
 
@@ -135,9 +133,9 @@ The app uses PostgreSQL with node-postgres for database management:
 
 ### **Vite Configuration**
 
-The app uses Vite with proxy configuration for local development:
+The app uses Vite for local development:
 - Frontend: `http://localhost:5173`
-- API proxy: `http://localhost:3001`
+- API: Vercel serverless functions (production)
 
 ## 📱 Usage
 
