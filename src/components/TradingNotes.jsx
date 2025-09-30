@@ -170,13 +170,6 @@ const TradingNotes = () => {
     
     // Check if this is a profit-only trade using the trade_type field
     const isProfitOnlyTrade = trade.trade_type === 'profit_only'
-    
-    console.log('=== EDIT DEBUG ===')
-    console.log('Trade data:', trade)
-    console.log('trade_type:', trade.trade_type)
-    console.log('isProfitOnlyTrade:', isProfitOnlyTrade)
-    console.log('==================')
-    
     setIsProfitOnlyMode(isProfitOnlyTrade)
     
     if (isProfitOnlyTrade) {

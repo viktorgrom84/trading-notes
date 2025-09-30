@@ -49,18 +49,6 @@ export default async function handler(req, res) {
         const finalPositionType = positionType || position_type || 'long';
         const finalTradeType = tradeType || (profit !== undefined ? 'profit_only' : 'regular');
 
-        // Debug logging
-        console.log('=== TRADE CREATION DEBUG ===');
-        console.log('Full request body:', JSON.stringify(req.body, null, 2));
-        console.log('Extracted positionType:', positionType);
-        console.log('Extracted position_type:', position_type);
-        console.log('Final position type:', finalPositionType);
-        console.log('Type of finalPositionType:', typeof finalPositionType);
-        console.log('Final position type === "short":', finalPositionType === 'short');
-        console.log('Final position type === "long":', finalPositionType === 'long');
-        console.log('Profit value:', profit);
-        console.log('Is profit only trade:', profit !== undefined);
-        console.log('============================');
 
         // Check if this is a profit-only trade (profit field exists, even if 0)
         const isProfitOnlyTrade = profit !== undefined && profit !== null;
