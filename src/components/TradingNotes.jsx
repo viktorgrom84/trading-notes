@@ -112,18 +112,15 @@ const TradingNotes = () => {
       
       if (isProfitOnlyMode) {
         // For profit-only mode, send profit field to backend
-        const isShort = values.positionType === 'short'
         tradeData = {
           symbol: values.symbol.toUpperCase(),
           profit: parseFloat(values.profit),
           buyDate: values.buyDate,
           notes: values.notes || null,
-          positionType: values.positionType || 'long',
-          isShort: isShort
+          positionType: values.positionType || 'long'
         }
       } else {
         // Regular mode
-        const isShort = values.positionType === 'short'
         tradeData = {
           symbol: values.symbol.toUpperCase(),
           shares: parseInt(values.shares),
@@ -132,8 +129,7 @@ const TradingNotes = () => {
           buyDate: values.buyDate,
           sellDate: values.sellDate || null,
           notes: values.notes || null,
-          positionType: values.positionType || 'long',
-          isShort: isShort
+          positionType: values.positionType || 'long'
         }
       }
 

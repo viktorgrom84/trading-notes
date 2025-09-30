@@ -45,15 +45,14 @@ export default async function handler(req, res) {
         );
         res.json(result.rows);
       } else if (req.method === 'POST') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, position_type, isShort } = req.body;
-        const finalPositionType = positionType || position_type || (isShort ? 'short' : 'long');
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, position_type } = req.body;
+        const finalPositionType = positionType || position_type || 'long';
 
         // Debug logging
         console.log('=== TRADE CREATION DEBUG ===');
         console.log('Full request body:', JSON.stringify(req.body, null, 2));
         console.log('Extracted positionType:', positionType);
         console.log('Extracted position_type:', position_type);
-        console.log('Extracted isShort:', isShort);
         console.log('Final position type:', finalPositionType);
         console.log('Type of finalPositionType:', typeof finalPositionType);
         console.log('Final position type === "short":', finalPositionType === 'short');
