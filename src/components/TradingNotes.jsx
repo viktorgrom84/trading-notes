@@ -234,23 +234,20 @@ const TradingNotes = () => {
   }
 
   const getProfit = (trade) => {
-    // For short positions, check if we have both entry (sell) and exit (buy) prices
+    // Check if this is a profit-only trade first
+    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0
+    
+    if (isProfitOnlyTrade) {
+      // For profit-only trades, sell_price contains the profit
+      return trade.sell_price
+    }
+    
+    // For regular trades, check if we have the required prices/dates
     const isShort = trade.position_type === 'short'
     if (isShort) {
       if (!trade.sell_price || !trade.buy_price || !trade.sell_date || !trade.buy_date) return null
     } else {
       if (!trade.sell_price || !trade.sell_date) return null
-    }
-    
-    // Check if this is a profit-only trade
-    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
-                             trade.buy_date === trade.sell_date && 
-                             trade.notes && trade.notes.includes('Profit-only trade')
-    
-    if (isProfitOnlyTrade) {
-      // For profit-only trades, sell_price contains the profit
-      // But we need to consider position type for proper display
-      return trade.sell_price
     }
     
     // Calculate profit based on position type
@@ -277,6 +274,12 @@ const TradingNotes = () => {
   }
 
   const getStatus = (trade) => {
+    // Profit-only trades are always closed since profit is already declared
+    // Profit-only trades have shares=1, buy_price=0, and sell_price=profit
+    if (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0) {
+      return 'closed'
+    }
+    
     const isShort = trade.position_type === 'short'
     if (isShort) {
       // For short positions, closed when we have both entry (sell) and exit (buy) prices
