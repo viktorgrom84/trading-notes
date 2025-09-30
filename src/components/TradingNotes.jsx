@@ -182,7 +182,7 @@ const TradingNotes = () => {
     if (isProfitOnlyTrade) {
       form.setValues({
         symbol: trade.symbol,
-        profit: trade.sell_price || undefined,
+        profit: trade.sell_price || 0,
         buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
         notes: trade.notes ? trade.notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : '',
         positionType: trade.position_type || 'long',
