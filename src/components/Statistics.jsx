@@ -391,9 +391,9 @@ const Statistics = () => {
           <Grid.Col span={{ base: 12, lg: 4 }}>
             <Card withBorder p="xl">
               <Title order={3} mb="md">Win/Loss Distribution</Title>
-              <Box h={350}>
+              <Box h={400}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                     <Pie
                       data={winLossData}
                       cx="50%"
@@ -403,7 +403,7 @@ const Statistics = () => {
                         const shortName = name === 'Winning Trades' ? 'Wins' : 'Losses'
                         return `${shortName}: ${(percent * 100).toFixed(0)}%`
                       }}
-                      outerRadius={90}
+                      outerRadius={70}
                       fill="#8884d8"
                       dataKey="value"
                     >
