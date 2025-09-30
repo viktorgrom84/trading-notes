@@ -45,8 +45,9 @@ export default async function handler(req, res) {
         );
         res.json(result.rows);
       } else if (req.method === 'POST') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, position_type } = req.body;
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, position_type, tradeType } = req.body;
         const finalPositionType = positionType || position_type || 'long';
+        const finalTradeType = tradeType || (profit !== undefined ? 'profit_only' : 'regular');
 
         // Debug logging
         console.log('=== TRADE CREATION DEBUG ===');
@@ -72,9 +73,9 @@ export default async function handler(req, res) {
           
           // For profit-only trades, store profit as sell_price with dummy values
           const result = await client.query(
-            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-            [userId, symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, finalPositionType]
+            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type, trade_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+            [userId, symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, finalPositionType, finalTradeType]
           );
           
           res.status(201).json(result.rows[0]);
@@ -85,9 +86,9 @@ export default async function handler(req, res) {
           }
 
           const result = await client.query(
-            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-            [userId, symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, finalPositionType]
+            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type, trade_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+            [userId, symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, finalPositionType, finalTradeType]
           );
 
           res.status(201).json(result.rows[0]);

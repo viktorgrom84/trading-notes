@@ -75,6 +75,29 @@ export default async function handler(req, res) {
         console.log('❌ Error with position_type column:', error.message);
       }
 
+      // Add trade_type column if it doesn't exist (migration)
+      try {
+        // First check if column exists
+        const columnCheck = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'trades' AND column_name = 'trade_type'
+        `);
+        
+        if (columnCheck.rows.length === 0) {
+          console.log('Adding trade_type column...');
+          await client.query(`
+            ALTER TABLE trades 
+            ADD COLUMN trade_type VARCHAR(20) CHECK (trade_type IN ('regular', 'profit_only'))
+          `);
+          console.log('✅ trade_type column added successfully');
+        } else {
+          console.log('ℹ️ trade_type column already exists');
+        }
+      } catch (error) {
+        console.log('❌ Error with trade_type column:', error.message);
+      }
+
       res.json({ message: 'Database initialized successfully' });
     } finally {
       client.release();

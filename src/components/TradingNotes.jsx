@@ -117,7 +117,8 @@ const TradingNotes = () => {
           profit: parseFloat(values.profit),
           buyDate: values.buyDate,
           notes: values.notes || null,
-          positionType: values.positionType || 'long'
+          positionType: values.positionType || 'long',
+          tradeType: 'profit_only'
         }
       } else {
         // Regular mode
@@ -129,7 +130,8 @@ const TradingNotes = () => {
           buyDate: values.buyDate,
           sellDate: values.sellDate || null,
           notes: values.notes || null,
-          positionType: values.positionType || 'long'
+          positionType: values.positionType || 'long',
+          tradeType: 'regular'
         }
       }
 
@@ -166,10 +168,14 @@ const TradingNotes = () => {
   const handleEdit = (trade) => {
     setEditingTrade(trade)
     
-    // Check if this is a profit-only trade (shares = 1, buyPrice = 0, same buy/sell date)
-    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
-                             trade.buy_date === trade.sell_date && 
-                             trade.notes && trade.notes.includes('Profit-only trade')
+    // Check if this is a profit-only trade using the trade_type field
+    const isProfitOnlyTrade = trade.trade_type === 'profit_only'
+    
+    console.log('=== EDIT DEBUG ===')
+    console.log('Trade data:', trade)
+    console.log('trade_type:', trade.trade_type)
+    console.log('isProfitOnlyTrade:', isProfitOnlyTrade)
+    console.log('==================')
     
     setIsProfitOnlyMode(isProfitOnlyTrade)
     
