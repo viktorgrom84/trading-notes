@@ -69,7 +69,18 @@ const Dashboard = () => {
   }
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString()
+    if (!dateString) return '-'
+    try {
+      const utcDate = new Date(dateString)
+      if (isNaN(utcDate.getTime())) return '-'
+      return utcDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+      })
+    } catch (error) {
+      return '-'
+    }
   }
 
   const getProfitColor = (profit) => {
