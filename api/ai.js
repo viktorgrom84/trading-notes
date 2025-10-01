@@ -164,12 +164,12 @@ Keep the analysis concise but actionable (max 500 words).`
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-3.5-turbo',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      max_tokens: 2000,
+      max_tokens: 1000,
       temperature: 0.7
     })
   })
@@ -193,9 +193,9 @@ Keep the analysis concise but actionable (max 500 words).`
   const outputTokens = openaiData.usage?.completion_tokens || 0
   const totalTokens = inputTokens + outputTokens
   
-  // GPT-4 Turbo pricing (as of 2024): $0.01 per 1K input tokens, $0.03 per 1K output tokens
-  const inputCost = (inputTokens / 1000) * 0.01
-  const outputCost = (outputTokens / 1000) * 0.03
+  // GPT-3.5-turbo pricing (as of 2024): $0.0015 per 1K input tokens, $0.002 per 1K output tokens
+  const inputCost = (inputTokens / 1000) * 0.0015
+  const outputCost = (outputTokens / 1000) * 0.002
   const totalCost = inputCost + outputCost
 
   // Store cost data and analysis results in database

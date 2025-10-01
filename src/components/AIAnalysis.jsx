@@ -426,7 +426,7 @@ const AIAnalysis = ({ user }) => {
               title="Cost Information"
               color="blue"
             >
-              AI analysis using GPT-4 Turbo typically costs $0.02-0.08 per analysis. Costs are based on the number of tokens used and provide high-quality insights with better performance.
+              AI analysis using GPT-3.5-turbo typically costs $0.01-0.03 per analysis. Costs are based on the number of tokens used and provide quality insights at a lower cost.
             </Alert>
 
             {costData && (
