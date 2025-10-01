@@ -52,27 +52,23 @@ export default async function handler(req, res) {
         `);
         
         if (columnCheck.rows.length === 0) {
-          console.log('Adding position_type column...');
           await client.query(`
             ALTER TABLE trades 
             ADD COLUMN position_type VARCHAR(10) CHECK (position_type IN ('long', 'short'))
           `);
-          console.log('✅ position_type column added successfully');
         } else {
-          console.log('ℹ️ position_type column already exists, updating default value...');
           // Try to remove the default value
           try {
             await client.query(`
               ALTER TABLE trades 
               ALTER COLUMN position_type DROP DEFAULT
             `);
-            console.log('✅ Removed default value from position_type column');
           } catch (error) {
-            console.log('ℹ️ Could not remove default value:', error.message);
+            // Default value removal failed, continue
           }
         }
       } catch (error) {
-        console.log('❌ Error with position_type column:', error.message);
+        // Position type column migration failed, continue
       }
 
       // Add trade_type column if it doesn't exist (migration)
@@ -85,17 +81,13 @@ export default async function handler(req, res) {
         `);
         
         if (columnCheck.rows.length === 0) {
-          console.log('Adding trade_type column...');
           await client.query(`
             ALTER TABLE trades 
             ADD COLUMN trade_type VARCHAR(20) CHECK (trade_type IN ('regular', 'profit_only'))
           `);
-          console.log('✅ trade_type column added successfully');
-        } else {
-          console.log('ℹ️ trade_type column already exists');
         }
       } catch (error) {
-        console.log('❌ Error with trade_type column:', error.message);
+        // Trade type column migration failed, continue
       }
 
       res.json({ message: 'Database initialized successfully' });
