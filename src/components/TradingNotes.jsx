@@ -167,38 +167,25 @@ const TradingNotes = () => {
 
   const handleEdit = (trade) => {
     setEditingTrade(trade)
+    const isProfitOnly = isProfitOnlyTrade(trade)
+    setIsProfitOnlyMode(isProfitOnly)
     
-    // Check if this is a profit-only trade using the trade_type field
-    const isProfitOnlyTrade = trade.trade_type === 'profit_only'
-    setIsProfitOnlyMode(isProfitOnlyTrade)
+    const formatDateForInput = (date) => date ? new Date(date).toISOString().split('T')[0] : ''
+    const cleanNotes = (notes) => notes ? notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : ''
     
-    if (isProfitOnlyTrade) {
-      form.setValues({
-        symbol: trade.symbol,
-        profit: trade.sell_price || 0,
-        buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
-        notes: trade.notes ? trade.notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : '',
-        positionType: trade.position_type || 'long',
-        // Set dummy values for regular fields
-        shares: 0,
-        buyPrice: 0,
-        sellPrice: '',
-        sellDate: ''
-      })
-    } else {
-      form.setValues({
-        symbol: trade.symbol,
-        shares: trade.shares,
-        buyPrice: trade.buy_price,
-        buyDate: trade.buy_date ? new Date(trade.buy_date).toISOString().split('T')[0] : '',
-        sellPrice: trade.sell_price || '',
-        sellDate: trade.sell_date ? new Date(trade.sell_date).toISOString().split('T')[0] : '',
-        notes: trade.notes || '',
-        positionType: trade.position_type || 'long',
-        // Set dummy values for profit-only fields
-        profit: undefined
-      })
-    }
+    form.setValues({
+      symbol: trade.symbol,
+      profit: isProfitOnly ? (trade.sell_price || 0) : undefined,
+      buyDate: formatDateForInput(trade.buy_date),
+      notes: isProfitOnly ? cleanNotes(trade.notes) : (trade.notes || ''),
+      positionType: trade.position_type || 'long',
+      // Regular trade fields
+      shares: isProfitOnly ? 0 : trade.shares,
+      buyPrice: isProfitOnly ? 0 : trade.buy_price,
+      sellPrice: isProfitOnly ? '' : (trade.sell_price || ''),
+      sellDate: isProfitOnly ? '' : formatDateForInput(trade.sell_date)
+    })
+    
     open()
   }
 
@@ -228,37 +215,33 @@ const TradingNotes = () => {
     }).format(amount)
   }
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString()
+  // Helper functions
+  const formatDate = (dateString) => new Date(dateString).toLocaleDateString()
+  
+  const isProfitOnlyTrade = (trade) => {
+    // Check trade_type field first, then fallback to legacy detection
+    if (trade.trade_type === 'profit_only') return true
+    if (trade.trade_type === 'regular') return false
+    
+    // Legacy detection: profit-only trades have shares=1, buy_price=0, and sell_price as profit
+    return trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0
   }
-
+  const isShortTrade = (trade) => trade.position_type === 'short'
+  
   const getProfit = (trade) => {
-    // Check if this is a profit-only trade first
-    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0
-    
-    if (isProfitOnlyTrade) {
-      // For profit-only trades, sell_price contains the profit
-      return trade.sell_price
+    if (isProfitOnlyTrade(trade)) {
+      return trade.sell_price // For profit-only trades, sell_price contains the profit
     }
     
-    // For regular trades, check if we have the required prices/dates
-    const isShort = trade.position_type === 'short'
-    if (isShort) {
-      if (!trade.sell_price || !trade.buy_price || !trade.sell_date || !trade.buy_date) return null
-    } else {
-      if (!trade.sell_price || !trade.sell_date) return null
-    }
+    const isShort = isShortTrade(trade)
+    const hasRequiredData = isShort 
+      ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
+      : trade.sell_price && trade.sell_date
     
-    // Calculate profit based on position type
-    if (isShort) {
-      // For short positions: profit = (sell_price - buy_price) * shares
-      // sell_price is the entry price (when we sold short)
-      // buy_price is the exit price (when we bought to cover)
-      return (trade.sell_price - trade.buy_price) * trade.shares
-    } else {
-      // For long positions: profit = (sell_price - buy_price) * shares
-      return (trade.sell_price - trade.buy_price) * trade.shares
-    }
+    if (!hasRequiredData) return null
+    
+    // Calculate profit: (sell_price - buy_price) * shares
+    return (trade.sell_price - trade.buy_price) * trade.shares
   }
 
   const getProfitColor = (profit) => {
@@ -274,17 +257,17 @@ const TradingNotes = () => {
 
   const getStatus = (trade) => {
     // Profit-only trades are always closed since profit is already declared
-    // Profit-only trades have shares=1, buy_price=0, and sell_price=profit
-    if (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0) {
-      return 'closed'
-    }
+    if (isProfitOnlyTrade(trade)) return 'closed'
     
-    const isShort = trade.position_type === 'short'
+    const isShort = isShortTrade(trade)
+    
     if (isShort) {
-      // For short positions, closed when we have both entry (sell) and exit (buy) prices
-      return trade.sell_price && trade.sell_date && trade.buy_price && trade.buy_date ? 'closed' : 'open'
+      // For short trades: closed when we have both entry (sell) and exit (buy) data
+      const hasEntryData = trade.sell_price && trade.sell_date
+      const hasExitData = trade.buy_price && trade.buy_date
+      return (hasEntryData && hasExitData) ? 'closed' : 'open'
     } else {
-      // For long positions, closed when we have sell price and date
+      // For long trades: closed when we have sell price and date
       return trade.sell_price && trade.sell_date ? 'closed' : 'open'
     }
   }
@@ -296,13 +279,34 @@ const TradingNotes = () => {
     return matchesSearch && matchesFilter
   })
 
+  // Helper functions for table display
+  const getEntryPrice = (trade) => {
+    if (isProfitOnlyTrade(trade)) return '-'
+    return isShortTrade(trade) ? formatCurrency(trade.sell_price) : formatCurrency(trade.buy_price)
+  }
+  
+  const getEntryDate = (trade) => {
+    return isShortTrade(trade) ? formatDate(trade.sell_date) : formatDate(trade.buy_date)
+  }
+  
+  const getExitPrice = (trade) => {
+    if (isProfitOnlyTrade(trade)) return '-'
+    return isShortTrade(trade) 
+      ? (trade.buy_price ? formatCurrency(trade.buy_price) : '-')
+      : (trade.sell_price ? formatCurrency(trade.sell_price) : '-')
+  }
+  
+  const getExitDate = (trade) => {
+    return isShortTrade(trade) 
+      ? (trade.buy_date ? formatDate(trade.buy_date) : '-')
+      : (trade.sell_date ? formatDate(trade.sell_date) : '-')
+  }
+
   const rows = filteredTrades.map((trade) => {
     const profit = getProfit(trade)
     const status = getStatus(trade)
-    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
-                             trade.buy_date === trade.sell_date && 
-                             trade.notes && trade.notes.includes('Profit-only trade')
-    const isShort = trade.position_type === 'short'
+    const isProfitOnly = isProfitOnlyTrade(trade)
+    const isShort = isShortTrade(trade)
     
     return (
       <Table.Tr key={trade.id}>
@@ -340,19 +344,19 @@ const TradingNotes = () => {
           </Badge>
         </Table.Td>
         <Table.Td>
-          {isProfitOnlyTrade ? '-' : trade.shares}
+          {isProfitOnly ? '-' : trade.shares}
         </Table.Td>
         <Table.Td>
-          {isProfitOnlyTrade ? '-' : (isShort ? formatCurrency(trade.sell_price) : formatCurrency(trade.buy_price))}
+          {getEntryPrice(trade)}
         </Table.Td>
         <Table.Td>
-          {isProfitOnlyTrade ? '-' : (isShort ? formatDate(trade.sell_date) : formatDate(trade.buy_date))}
+          {getEntryDate(trade)}
         </Table.Td>
         <Table.Td>
-          {isProfitOnlyTrade ? '-' : (isShort ? (trade.buy_price ? formatCurrency(trade.buy_price) : '-') : (trade.sell_price ? formatCurrency(trade.sell_price) : '-'))}
+          {getExitPrice(trade)}
         </Table.Td>
         <Table.Td>
-          {isProfitOnlyTrade ? '-' : (isShort ? (trade.buy_date ? formatDate(trade.buy_date) : '-') : (trade.sell_date ? formatDate(trade.sell_date) : '-'))}
+          {getExitDate(trade)}
         </Table.Td>
         <Table.Td>
           {profit !== null ? (
@@ -537,6 +541,7 @@ const TradingNotes = () => {
                     { label: 'Profit Only', value: 'profit' }
                   ]}
                   size="sm"
+                  disabled={editingTrade !== null}
                 />
               </Group>
 
