@@ -19,24 +19,30 @@ export default async function handler(req, res) {
 
   try {
     // Verify authentication
-    const authResult = await verifyToken(req)
-    if (!authResult.success) {
-      return res.status(401).json({ message: 'Unauthorized' })
+    const authHeader = req.headers.authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' })
+    }
+
+    const token = authHeader.substring(7)
+    const decoded = verifyToken(token)
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid token' })
     }
 
     // Check if user is admin
-    if (!isAdmin(authResult.username)) {
+    if (!isAdmin(decoded.username)) {
       return res.status(403).json({ message: 'Access denied. Admin privileges required.' })
     }
 
     const { action } = req.query
 
     if (action === 'analyze') {
-      return await handleAnalyze(req, res, authResult)
+      return await handleAnalyze(req, res, decoded)
     } else if (action === 'costs') {
-      return await handleCosts(req, res, authResult)
+      return await handleCosts(req, res, decoded)
     } else if (action === 'history') {
-      return await handleHistory(req, res, authResult)
+      return await handleHistory(req, res, decoded)
     } else {
       return res.status(400).json({ message: 'Invalid action. Use: analyze, costs, or history' })
     }
@@ -52,7 +58,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function handleAnalyze(req, res, authResult) {
+async function handleAnalyze(req, res, decoded) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
   }
@@ -201,16 +207,16 @@ Keep the analysis concise but actionable (max 500 words).`
       // Store cost data
       await client.query(
         'INSERT INTO ai_analysis_costs (user_id, analysis_type, input_tokens, output_tokens, total_tokens, estimated_cost) VALUES ($1, $2, $3, $4, $5, $6)',
-        [authResult.userId, analysisType, inputTokens, outputTokens, totalTokens, totalCost]
+        [decoded.userId, analysisType, inputTokens, outputTokens, totalTokens, totalCost]
       )
 
       // Store analysis results
       await client.query(
         'INSERT INTO ai_analysis_results (user_id, analysis_type, analysis_text, statistics, cost_data) VALUES ($1, $2, $3, $4, $5)',
-        [
-          authResult.userId, 
-          analysisType, 
-          analysis,
+          [
+            decoded.userId, 
+            analysisType, 
+            analysis,
           JSON.stringify({
             totalTrades: tradesSummary.length,
             closedTrades: closedTrades.length,
@@ -254,7 +260,7 @@ Keep the analysis concise but actionable (max 500 words).`
   })
 }
 
-async function handleCosts(req, res, authResult) {
+async function handleCosts(req, res, decoded) {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method not allowed' })
   }
@@ -277,7 +283,7 @@ async function handleCosts(req, res, authResult) {
       FROM ai_analysis_costs 
       WHERE user_id = $1 
       AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
-    `, [authResult.userId])
+    `, [decoded.userId])
 
     // Get daily usage for the last 7 days
     const dailyQuery = await client.query(`
@@ -290,7 +296,7 @@ async function handleCosts(req, res, authResult) {
       AND created_at >= CURRENT_DATE - INTERVAL '7 days'
       GROUP BY DATE(created_at)
       ORDER BY date DESC
-    `, [authResult.userId])
+    `, [decoded.userId])
 
     const currentMonthData = monthQuery.rows[0]
     const dailyData = dailyQuery.rows
@@ -337,7 +343,7 @@ async function handleCosts(req, res, authResult) {
   }
 }
 
-async function handleHistory(req, res, authResult) {
+async function handleHistory(req, res, decoded) {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method not allowed' })
   }
@@ -363,7 +369,7 @@ async function handleHistory(req, res, authResult) {
       WHERE user_id = $1 
       ORDER BY created_at DESC
       LIMIT 50
-    `, [authResult.userId])
+    `, [decoded.userId])
 
     const analysisHistory = query.rows.map(row => ({
       id: row.id,

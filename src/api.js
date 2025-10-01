@@ -125,8 +125,7 @@ class ApiClient {
 
   // AI Analysis
   async analyzeTrades(trades, analysisType = 'general') {
-    // Test with simpler endpoint first
-    return this.request('/ai-test', {
+    return this.request('/ai?action=analyze', {
       method: 'POST',
       body: JSON.stringify({ trades, analysisType }),
     });
