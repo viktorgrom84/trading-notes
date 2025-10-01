@@ -25,7 +25,10 @@ import {
   Skeleton,
   Switch,
   SegmentedControl,
-  Tooltip
+  Tooltip,
+  Pagination,
+  Select,
+  Flex
 } from '@mantine/core'
 import { 
   IconPlus, 
@@ -54,6 +57,10 @@ const TradingNotes = () => {
   const [opened, { open, close }] = useDisclosure(false)
   const [editingTrade, setEditingTrade] = useState(null)
   const [isProfitOnlyMode, setIsProfitOnlyMode] = useState(false)
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
 
   const form = useForm({
     initialValues: {
@@ -329,6 +336,18 @@ const TradingNotes = () => {
       return dateB - dateA
     })
 
+  // Pagination logic
+  const totalTrades = filteredTrades.length
+  const totalPages = Math.ceil(totalTrades / pageSize)
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const paginatedTrades = filteredTrades.slice(startIndex, endIndex)
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterStatus, pageSize])
+
   // Helper functions for table display
   const getEntryPrice = (trade) => {
     if (isProfitOnlyTrade(trade)) return '-'
@@ -352,7 +371,7 @@ const TradingNotes = () => {
       : (trade.sell_date ? formatDate(trade.sell_date) : '-')
   }
 
-  const rows = filteredTrades.map((trade) => {
+  const rows = paginatedTrades.map((trade) => {
     const profit = getProfit(trade)
     const status = getStatus(trade)
     const isProfitOnly = isProfitOnlyTrade(trade)
@@ -566,6 +585,38 @@ const TradingNotes = () => {
                 </div>
               </Stack>
             </Center>
+          </Card>
+        )}
+
+        {/* Pagination Controls */}
+        {filteredTrades.length > 0 && (
+          <Card withBorder>
+            <Flex justify="space-between" align="center" wrap="wrap" gap="md">
+              <Group gap="md">
+                <Text size="sm" c="dimmed">
+                  Showing {startIndex + 1}-{Math.min(endIndex, totalTrades)} of {totalTrades} trades
+                </Text>
+                <Select
+                  size="sm"
+                  value={pageSize.toString()}
+                  onChange={(value) => setPageSize(parseInt(value))}
+                  data={[
+                    { value: '10', label: '10 per page' },
+                    { value: '25', label: '25 per page' },
+                    { value: '50', label: '50 per page' },
+                    { value: '100', label: '100 per page' }
+                  ]}
+                  w={140}
+                />
+              </Group>
+              <Pagination
+                value={currentPage}
+                onChange={setCurrentPage}
+                total={totalPages}
+                size="sm"
+                withEdges
+              />
+            </Flex>
           </Card>
         )}
 
