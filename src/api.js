@@ -125,18 +125,18 @@ class ApiClient {
 
   // AI Analysis
   async analyzeTrades(trades, analysisType = 'general') {
-    return this.request('/ai/analyze', {
+    return this.request('/ai?action=analyze', {
       method: 'POST',
       body: JSON.stringify({ trades, analysisType }),
     });
   }
 
   async getCostData() {
-    return this.request('/ai/costs');
+    return this.request('/ai?action=costs');
   }
 
   async getAnalysisHistory() {
-    return this.request('/ai/history');
+    return this.request('/ai?action=history');
   }
 }
 
