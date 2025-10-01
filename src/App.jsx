@@ -12,6 +12,7 @@ import TradingNotes from './components/TradingNotes'
 import Statistics from './components/Statistics'
 import Calendar from './components/Calendar'
 import Admin from './components/Admin'
+import AIAnalysis from './components/AIAnalysis'
 import Navbar from './components/Navbar'
 import apiClient from './api'
 
@@ -65,6 +66,7 @@ function App() {
                     <Route path="/trades" element={<TradingNotes />} />
                     <Route path="/statistics" element={<Statistics />} />
                     <Route path="/calendar" element={<Calendar />} />
+                    <Route path="/ai-analysis" element={<AIAnalysis user={user} />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>

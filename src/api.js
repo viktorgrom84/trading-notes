@@ -122,6 +122,22 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // AI Analysis
+  async analyzeTrades(trades, analysisType = 'general') {
+    return this.request('/ai/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ trades, analysisType }),
+    });
+  }
+
+  async getCostData() {
+    return this.request('/ai/costs');
+  }
+
+  async getAnalysisHistory() {
+    return this.request('/ai/history');
+  }
 }
 
 export default new ApiClient();

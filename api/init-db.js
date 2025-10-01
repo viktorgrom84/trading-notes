@@ -90,6 +90,33 @@ export default async function handler(req, res) {
         // Trade type column migration failed, continue
       }
 
+      // Create AI analysis costs table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ai_analysis_costs (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          analysis_type VARCHAR(20) NOT NULL,
+          input_tokens INTEGER NOT NULL,
+          output_tokens INTEGER NOT NULL,
+          total_tokens INTEGER NOT NULL,
+          estimated_cost DECIMAL(10,6) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Create AI analysis results table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ai_analysis_results (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          analysis_type VARCHAR(20) NOT NULL,
+          analysis_text TEXT NOT NULL,
+          statistics JSONB NOT NULL,
+          cost_data JSONB NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
       res.json({ message: 'Database initialized successfully' });
     } finally {
       client.release();

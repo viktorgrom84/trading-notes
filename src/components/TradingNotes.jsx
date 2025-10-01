@@ -200,7 +200,6 @@ const TradingNotes = () => {
         return ''
       }
     }
-    const cleanNotes = (notes) => notes ? notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : ''
     
     form.setValues({
       symbol: trade.symbol,
@@ -305,6 +304,13 @@ const TradingNotes = () => {
     return <IconMinus size={16} />
   }
 
+  const cleanNotes = (notes) => notes ? notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : ''
+  
+  const getDisplayNotes = (trade) => {
+    if (!trade.notes || trade.notes.trim() === '') return ''
+    return cleanNotes(trade.notes)
+  }
+
   const getStatus = (trade) => {
     // Profit-only trades are always closed since profit is already declared
     if (isProfitOnlyTrade(trade)) return 'closed'
@@ -382,14 +388,14 @@ const TradingNotes = () => {
         <Table.Td>
           <Group gap="sm">
             <Tooltip
-              label={trade.notes}
+              label={getDisplayNotes(trade)}
               position="top"
               withArrow
               multiline
               w={300}
-              disabled={!trade.notes || trade.notes.trim() === ''}
+              disabled={!getDisplayNotes(trade)}
             >
-              <Text fw={600} style={{ cursor: (trade.notes && trade.notes.trim() !== '') ? 'help' : 'default' }}>
+              <Text fw={600} style={{ cursor: getDisplayNotes(trade) ? 'help' : 'default' }}>
                 {trade.symbol}
               </Text>
             </Tooltip>

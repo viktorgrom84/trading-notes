@@ -8,7 +8,7 @@ const pool = new Pool({
   }
 });
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'viktorgrom84@gmail.com';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
 
 export default async function handler(req, res) {
   try {

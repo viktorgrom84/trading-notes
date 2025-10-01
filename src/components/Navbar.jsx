@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   AppShell,
@@ -23,7 +23,8 @@ import {
   IconLogout, 
   IconUser,
   IconChevronDown,
-  IconShield
+  IconShield,
+  IconBrain
 } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
 import { checkAdminAccess } from '../utils/admin'
@@ -36,6 +37,7 @@ const Navbar = ({ user, onLogout }) => {
     { path: '/', label: 'Dashboard', icon: IconHome },
     { path: '/trades', label: 'Trading Notes', icon: IconBook },
     { path: '/statistics', label: 'Statistics', icon: IconChartBar },
+    { path: '/ai-analysis', label: 'AI Analysis', icon: IconBrain, adminOnly: true },
     { path: '/calendar', label: 'Calendar', icon: IconCalendar },
     { path: '/admin', label: 'Admin', icon: IconShield, adminOnly: true }
   ]
