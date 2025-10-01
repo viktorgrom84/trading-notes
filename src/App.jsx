@@ -10,6 +10,7 @@ import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import TradingNotes from './components/TradingNotes'
 import Statistics from './components/Statistics'
+import Calendar from './components/Calendar'
 import Admin from './components/Admin'
 import Navbar from './components/Navbar'
 import apiClient from './api'
@@ -63,6 +64,7 @@ function App() {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/trades" element={<TradingNotes />} />
                     <Route path="/statistics" element={<Statistics />} />
+                    <Route path="/calendar" element={<Calendar />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>

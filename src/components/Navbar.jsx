@@ -19,6 +19,7 @@ import {
   IconHome, 
   IconBook, 
   IconChartBar, 
+  IconCalendar,
   IconLogout, 
   IconUser,
   IconChevronDown,
@@ -35,6 +36,7 @@ const Navbar = ({ user, onLogout }) => {
     { path: '/', label: 'Dashboard', icon: IconHome },
     { path: '/trades', label: 'Trading Notes', icon: IconBook },
     { path: '/statistics', label: 'Statistics', icon: IconChartBar },
+    { path: '/calendar', label: 'Calendar', icon: IconCalendar },
     { path: '/admin', label: 'Admin', icon: IconShield, adminOnly: true }
   ]
 

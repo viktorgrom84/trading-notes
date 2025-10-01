@@ -170,7 +170,29 @@ const TradingNotes = () => {
     const isProfitOnly = isProfitOnlyTrade(trade)
     setIsProfitOnlyMode(isProfitOnly)
     
-    const formatDateForInput = (date) => date ? new Date(date).toISOString().split('T')[0] : ''
+    const formatDateForInput = (date) => {
+      if (!date) return ''
+      
+      try {
+        let localDate
+        if (date.includes('T')) {
+          localDate = new Date(date)
+        } else {
+          localDate = new Date(date + 'T12:00:00')
+        }
+        
+        if (isNaN(localDate.getTime())) {
+          return ''
+        }
+        
+        const year = localDate.getFullYear()
+        const month = String(localDate.getMonth() + 1).padStart(2, '0')
+        const day = String(localDate.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      } catch (error) {
+        return ''
+      }
+    }
     const cleanNotes = (notes) => notes ? notes.replace(/^Profit-only trade: [+\-]?[\d,]+\.?\d*\s*/, '') : ''
     
     form.setValues({
@@ -216,7 +238,38 @@ const TradingNotes = () => {
   }
 
   // Helper functions
-  const formatDate = (dateString) => new Date(dateString).toLocaleDateString()
+  const formatDate = (dateString) => {
+    if (!dateString || dateString === null || dateString === undefined) return '-'
+    
+    // Debug: Let's see what we're getting from the database
+    console.log('Raw date from DB:', dateString)
+    
+    try {
+      // Parse UTC date from database
+      const utcDate = new Date(dateString)
+      console.log('Parsed date object:', utcDate)
+      console.log('UTC string:', utcDate.toISOString())
+      console.log('Local string:', utcDate.toString())
+      
+      // Check if date is valid
+      if (isNaN(utcDate.getTime())) {
+        console.log('Invalid date!')
+        return '-'
+      }
+      
+      // Convert to user's local timezone for display
+      const formatted = utcDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+      })
+      console.log('Final formatted date:', formatted)
+      return formatted
+    } catch (error) {
+      console.log('Error formatting date:', error)
+      return '-'
+    }
+  }
   
   const isProfitOnlyTrade = (trade) => {
     // Check trade_type field first, then fallback to legacy detection
@@ -272,12 +325,19 @@ const TradingNotes = () => {
     }
   }
 
-  const filteredTrades = (trades || []).filter(trade => {
-    const matchesSearch = trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (trade.notes && trade.notes.toLowerCase().includes(searchTerm.toLowerCase()))
-    const matchesFilter = filterStatus === 'all' || getStatus(trade) === filterStatus
-    return matchesSearch && matchesFilter
-  })
+  const filteredTrades = (trades || [])
+    .filter(trade => {
+      const matchesSearch = trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (trade.notes && trade.notes.toLowerCase().includes(searchTerm.toLowerCase()))
+      const matchesFilter = filterStatus === 'all' || getStatus(trade) === filterStatus
+      return matchesSearch && matchesFilter
+    })
+    .sort((a, b) => {
+      // Sort by entry date (buy_date) in descending order (newest first)
+      const dateA = new Date(a.buy_date || 0)
+      const dateB = new Date(b.buy_date || 0)
+      return dateB - dateA
+    })
 
   // Helper functions for table display
   const getEntryPrice = (trade) => {
