@@ -59,8 +59,8 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Symbol, profit, and buy date are required for profit-only trades' });
           }
           
-          // Store the exact date selected by user (no timezone conversion)
-          const utcBuyDate = buyDate + 'T00:00:00.000Z'
+          // Store the exact date selected by user (use noon UTC to avoid date boundary issues)
+          const utcBuyDate = buyDate + 'T12:00:00.000Z'
           
           // For profit-only trades, store profit as sell_price with dummy values
           const result = await client.query(
@@ -76,9 +76,9 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Symbol, shares, buy price, and buy date are required' });
           }
 
-          // Store the exact dates selected by user (no timezone conversion)
-          const utcBuyDate = buyDate + 'T00:00:00.000Z'
-          const utcSellDate = sellDate ? sellDate + 'T00:00:00.000Z' : null
+          // Store the exact dates selected by user (use noon UTC to avoid date boundary issues)
+          const utcBuyDate = buyDate + 'T12:00:00.000Z'
+          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null
 
           const result = await client.query(
             `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type, trade_type)

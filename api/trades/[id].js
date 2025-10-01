@@ -34,8 +34,8 @@ export default async function handler(req, res) {
         const isProfitOnlyTrade = profit !== undefined;
         
         if (isProfitOnlyTrade) {
-          // Profit-only trade update - store exact date selected by user
-          const utcBuyDate = buyDate + 'T00:00:00.000Z'
+          // Profit-only trade update - store exact date selected by user (use noon UTC)
+          const utcBuyDate = buyDate + 'T12:00:00.000Z'
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
              buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
@@ -49,9 +49,9 @@ export default async function handler(req, res) {
 
           res.json(result.rows[0]);
         } else {
-          // Regular trade update - store exact dates selected by user
-          const utcBuyDate = buyDate + 'T00:00:00.000Z'
-          const utcSellDate = sellDate ? sellDate + 'T00:00:00.000Z' : null
+          // Regular trade update - store exact dates selected by user (use noon UTC)
+          const utcBuyDate = buyDate + 'T12:00:00.000Z'
+          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
              buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
