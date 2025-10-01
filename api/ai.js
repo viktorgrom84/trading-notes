@@ -71,6 +71,7 @@ async function handleAnalyze(req, res, decoded) {
 
   // Get OpenAI API key from environment
   const openaiApiKey = process.env.TRADING_NOTES_AI
+  console.log('OpenAI API Key exists:', !!openaiApiKey)
   if (!openaiApiKey) {
     return res.status(500).json({ message: 'AI service not configured' })
   }
@@ -155,6 +156,7 @@ Keep the analysis concise but actionable (max 500 words).`
   }
 
   // Call OpenAI API
+  console.log('Calling OpenAI API...')
   const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -171,6 +173,8 @@ Keep the analysis concise but actionable (max 500 words).`
       temperature: 0.7
     })
   })
+  
+  console.log('OpenAI Response status:', openaiResponse.status)
 
   if (!openaiResponse.ok) {
     const errorData = await openaiResponse.json()
