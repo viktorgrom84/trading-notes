@@ -1,4 +1,4 @@
-import { verifyToken } from './auth-utils.js'
+import { verifyToken } from './auth.js'
 
 // Check if user is admin
 const isAdmin = (username) => {
