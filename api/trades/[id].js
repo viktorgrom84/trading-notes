@@ -34,12 +34,13 @@ export default async function handler(req, res) {
         const isProfitOnlyTrade = profit !== undefined;
         
         if (isProfitOnlyTrade) {
-          // Profit-only trade update
+          // Profit-only trade update - store exact date selected by user
+          const utcBuyDate = buyDate + 'T00:00:00.000Z'
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
              buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
              WHERE id = $9 AND user_id = $10 RETURNING *`,
-            [symbol, 1, 0, buyDate, profit, buyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, positionType || 'long', id, userId]
+            [symbol, 1, 0, utcBuyDate, profit, utcBuyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, positionType || 'long', id, userId]
           );
 
           if (result.rows.length === 0) {
@@ -48,12 +49,14 @@ export default async function handler(req, res) {
 
           res.json(result.rows[0]);
         } else {
-          // Regular trade update
+          // Regular trade update - store exact dates selected by user
+          const utcBuyDate = buyDate + 'T00:00:00.000Z'
+          const utcSellDate = sellDate ? sellDate + 'T00:00:00.000Z' : null
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
              buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
              WHERE id = $9 AND user_id = $10 RETURNING *`,
-            [symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, positionType || 'long', id, userId]
+            [symbol, shares, buyPrice, utcBuyDate, sellPrice, utcSellDate, notes, positionType || 'long', id, userId]
           );
 
           if (result.rows.length === 0) {
