@@ -33,6 +33,14 @@ const Navbar = ({ user, onLogout }) => {
   const location = useLocation()
   const [opened, { toggle, close }] = useDisclosure(false)
 
+  // Debug logging
+  console.log('Navbar Debug:', {
+    user,
+    username: user?.username,
+    adminUsername: import.meta.env.VITE_ADMIN_USERNAME,
+    isAdmin: checkAdminAccess(user)
+  })
+
   const navItems = [
     { path: '/', label: 'Dashboard', icon: IconHome },
     { path: '/trades', label: 'Trading Notes', icon: IconBook },
