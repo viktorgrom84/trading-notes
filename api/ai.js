@@ -1,4 +1,4 @@
-import { verifyToken } from '../auth-utils.js'
+import { verifyToken } from './auth-utils.js'
 
 // Check if user is admin
 const isAdmin = (username) => {
@@ -43,9 +43,11 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('AI API Error:', error)
+    console.error('Error stack:', error.stack)
     res.status(500).json({ 
       message: 'Internal server error',
-      error: error.message 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
 }
