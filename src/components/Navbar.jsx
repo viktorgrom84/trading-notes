@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   AppShell,
@@ -33,13 +33,10 @@ const Navbar = ({ user, onLogout }) => {
   const location = useLocation()
   const [opened, { toggle, close }] = useDisclosure(false)
 
-  // Debug logging
-  console.log('Navbar Debug:', {
-    user,
-    username: user?.username,
-    adminUsername: import.meta.env.VITE_ADMIN_USERNAME,
-    isAdmin: checkAdminAccess(user)
-  })
+  // Memoize admin access check to prevent unnecessary re-renders
+  const hasAdminAccess = useMemo(() => {
+    return checkAdminAccess(user)
+  }, [user?.username])
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: IconHome },
@@ -92,7 +89,7 @@ const Navbar = ({ user, onLogout }) => {
               {/* Desktop Navigation */}
               <Group gap="xs" visibleFrom="sm">
                 {navItems
-                  .filter(item => !item.adminOnly || checkAdminAccess(user))
+                  .filter(item => !item.adminOnly || hasAdminAccess)
                   .map((item) => (
                     <NavLink key={item.path} item={item} />
                   ))}
@@ -130,7 +127,7 @@ const Navbar = ({ user, onLogout }) => {
       >
             <Stack gap="xs">
               {navItems
-                .filter(item => !item.adminOnly || checkAdminAccess(user))
+                .filter(item => !item.adminOnly || hasAdminAccess)
                 .map((item) => (
                   <NavLink key={item.path} item={item} onClick={close} />
                 ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { 
   Container, 
   Paper, 
@@ -27,8 +27,6 @@ import {
   IconTrendingDown, 
   IconCurrencyDollar,
   IconPercentage,
-  IconTarget,
-  IconAlertCircle,
   IconInfoCircle,
   IconRefresh,
   IconChartBar,
@@ -43,17 +41,25 @@ const AIAnalysis = ({ user }) => {
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(false)
   const [tradesLoading, setTradesLoading] = useState(true)
-  const [analysisType, setAnalysisType] = useState('general')
   const [costData, setCostData] = useState(null)
   const [costModalOpened, setCostModalOpened] = useState(false)
+  const [analysisHistory, setAnalysisHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyModalOpened, setHistoryModalOpened] = useState(false)
 
   useEffect(() => {
     loadTrades()
     loadCostData()
+    loadAnalysisHistory()
   }, [])
 
+  // Memoize admin access check to prevent unnecessary re-renders
+  const hasAdminAccess = useMemo(() => {
+    return checkAdminAccess(user)
+  }, [user?.username])
+
   // Check if user has admin access
-  if (!checkAdminAccess(user)) {
+  if (!hasAdminAccess) {
     return (
       <Container size="xl" py="xl">
         <Card withBorder>
@@ -133,6 +139,23 @@ const AIAnalysis = ({ user }) => {
     }
   }
 
+  const loadAnalysisHistory = async () => {
+    try {
+      setHistoryLoading(true)
+      const data = await apiClient.getAnalysisHistory()
+      setAnalysisHistory(data.analysisHistory || [])
+    } catch (error) {
+      console.error('Error loading analysis history:', error)
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to load analysis history',
+        color: 'red',
+      })
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   const handleAnalyze = async () => {
     if (!trades || trades.length === 0) {
       notifications.show({
@@ -145,8 +168,13 @@ const AIAnalysis = ({ user }) => {
 
     try {
       setLoading(true)
-      const result = await apiClient.analyzeTrades(trades, analysisType)
+      const result = await apiClient.analyzeTrades(trades, 'general')
+      // Add analysis type to the result for display
+      result.analysisType = 'general'
       setAnalysis(result)
+      
+      // Refresh analysis history
+      await loadAnalysisHistory()
       
       notifications.show({
         title: 'Analysis Complete',
@@ -182,23 +210,6 @@ const AIAnalysis = ({ user }) => {
     }).format(amount)
   }
 
-  const getAnalysisTypeIcon = (type) => {
-    switch (type) {
-      case 'risk': return <IconAlertCircle size={16} />
-      case 'psychology': return <IconBrain size={16} />
-      case 'strategy': return <IconTarget size={16} />
-      default: return <IconChartBar size={16} />
-    }
-  }
-
-  const getAnalysisTypeColor = (type) => {
-    switch (type) {
-      case 'risk': return 'red'
-      case 'psychology': return 'purple'
-      case 'strategy': return 'blue'
-      default: return 'green'
-    }
-  }
 
   if (tradesLoading) {
     return (
@@ -247,6 +258,13 @@ const AIAnalysis = ({ user }) => {
           <Group gap="sm">
             <Button
               variant="outline"
+              leftSection={<IconChartBar size={16} />}
+              onClick={() => setHistoryModalOpened(true)}
+            >
+              History ({analysisHistory.length})
+            </Button>
+            <Button
+              variant="outline"
               leftSection={<IconInfoCircle size={16} />}
               onClick={() => setCostModalOpened(true)}
             >
@@ -268,34 +286,18 @@ const AIAnalysis = ({ user }) => {
         {/* Analysis Type Selection */}
         <Card withBorder p="md">
           <Stack gap="md">
-            <Text fw={500}>Analysis Type</Text>
-            <SegmentedControl
-              value={analysisType}
-              onChange={setAnalysisType}
-              data={[
-                { 
-                  label: 'General Analysis', 
-                  value: 'general',
-                  icon: <IconChartBar size={16} />
-                },
-                { 
-                  label: 'Risk Management', 
-                  value: 'risk',
-                  icon: <IconAlertCircle size={16} />
-                },
-                { 
-                  label: 'Trading Psychology', 
-                  value: 'psychology',
-                  icon: <IconBrain size={16} />
-                },
-                { 
-                  label: 'Strategy Optimization', 
-                  value: 'strategy',
-                  icon: <IconTarget size={16} />
-                }
-              ]}
-              fullWidth
-            />
+            <Group justify="space-between">
+              <Text fw={500}>Analysis Type</Text>
+              <Badge 
+                color="green"
+                leftSection={<IconChartBar size={16} />}
+              >
+                General Analysis
+              </Badge>
+            </Group>
+            <Text size="sm" c="dimmed">
+              AI-powered analysis of your trading performance with actionable insights and recommendations.
+            </Text>
           </Stack>
         </Card>
 
@@ -308,10 +310,10 @@ const AIAnalysis = ({ user }) => {
                 <Group justify="space-between">
                   <Title order={3}>Performance Summary</Title>
                   <Badge 
-                    color={getAnalysisTypeColor(analysisType)}
-                    leftSection={getAnalysisTypeIcon(analysisType)}
+                    color="green"
+                    leftSection={<IconChartBar size={16} />}
                   >
-                    {analysisType.charAt(0).toUpperCase() + analysisType.slice(1)} Analysis
+                    General Analysis
                   </Badge>
                 </Group>
                 
@@ -412,6 +414,98 @@ const AIAnalysis = ({ user }) => {
             </Stack>
           </Card>
         )}
+
+        {/* Analysis History Modal */}
+        <Modal
+          opened={historyModalOpened}
+          onClose={() => setHistoryModalOpened(false)}
+          title="Analysis History"
+          size="xl"
+        >
+          <Stack gap="md">
+            {historyLoading ? (
+              <Stack gap="md">
+                <Skeleton height={100} />
+                <Skeleton height={100} />
+                <Skeleton height={100} />
+              </Stack>
+            ) : analysisHistory.length === 0 ? (
+              <Card withBorder>
+                <Center py="xl">
+                  <Stack align="center" gap="md">
+                    <ThemeIcon size="xl" variant="light" color="gray">
+                      <IconChartBar size={32} />
+                    </ThemeIcon>
+                    <div style={{ textAlign: 'center' }}>
+                      <Text size="lg" fw={500} mb="xs">
+                        No Analysis History
+                      </Text>
+                      <Text c="dimmed">
+                        Run your first AI analysis to see it here
+                      </Text>
+                    </div>
+                  </Stack>
+                </Center>
+              </Card>
+            ) : (
+              <ScrollArea h={500}>
+                <Stack gap="md">
+                  {analysisHistory.map((item, index) => (
+                    <Card key={item.id || index} withBorder p="md">
+                      <Stack gap="sm">
+                        <Group justify="space-between">
+                          <Group gap="sm">
+                            <Badge 
+                              color="green"
+                              leftSection={<IconChartBar size={16} />}
+                            >
+                              General Analysis
+                            </Badge>
+                            <Text size="sm" c="dimmed">
+                              {new Date(item.createdAt).toLocaleString()}
+                            </Text>
+                          </Group>
+                          <Group gap="xs">
+                            <Text size="sm" c="dimmed">
+                              Cost: {formatCurrency(item.costData?.estimatedCost || 0)}
+                            </Text>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => {
+                                setAnalysis({
+                                  analysis: item.analysisText,
+                                  statistics: item.statistics,
+                                  cost: item.costData,
+                                  analysisType: item.analysisType
+                                })
+                                setHistoryModalOpened(false)
+                              }}
+                            >
+                              View
+                            </Button>
+                          </Group>
+                        </Group>
+                        
+                        <Text size="sm" lineClamp={3}>
+                          {item.analysisText}
+                        </Text>
+                        
+                        <Group gap="md">
+                          <Text size="xs" c="dimmed">
+                            Trades: {item.statistics?.totalTrades || 0} | 
+                            Win Rate: {item.statistics?.winRate?.toFixed(1) || 0}% | 
+                            P/L: {formatCurrency(item.statistics?.totalProfit || 0)}
+                          </Text>
+                        </Group>
+                      </Stack>
+                    </Card>
+                  ))}
+                </Stack>
+              </ScrollArea>
+            )}
+          </Stack>
+        </Modal>
 
         {/* Cost Management Modal */}
         <Modal

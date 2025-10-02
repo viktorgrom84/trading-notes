@@ -84,6 +84,15 @@ const Statistics = () => {
 
   const getCompletedTrades = () => {
     return getFilteredTrades().filter(trade => {
+      // Check if this is a profit-only trade
+      const isProfitOnly = trade.trade_type === 'profit_only' || 
+        (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
+      
+      if (isProfitOnly) {
+        // Profit-only trades are considered completed if they have sell_price
+        return trade.sell_price
+      }
+      
       const isShort = trade.position_type === 'short'
       if (isShort) {
         // For short positions, need both entry (sell) and exit (buy) prices
@@ -112,18 +121,29 @@ const Statistics = () => {
     }
 
     const profits = completedTrades.map(trade => {
-      const isShort = trade.position_type === 'short'
+      // Check if this is a profit-only trade
+      const isProfitOnly = trade.trade_type === 'profit_only' || 
+        (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
+      
       let profit, volume
       
-      if (isShort) {
-        // For short positions: profit = (sell_price - buy_price) * shares
-        // sell_price is entry (when we sold short), buy_price is exit (when we bought to cover)
-        profit = (trade.sell_price - trade.buy_price) * trade.shares
-        volume = trade.sell_price * trade.shares // Use sell_price for volume calculation
+      if (isProfitOnly) {
+        // For profit-only trades, sell_price contains the profit
+        profit = trade.sell_price
+        volume = 0 // No volume for profit-only trades
       } else {
-        // For long positions: profit = (sell_price - buy_price) * shares
-        profit = (trade.sell_price - trade.buy_price) * trade.shares
-        volume = trade.buy_price * trade.shares
+        const isShort = trade.position_type === 'short'
+        
+        if (isShort) {
+          // For short positions: profit = (sell_price - buy_price) * shares
+          // sell_price is entry (when we sold short), buy_price is exit (when we bought to cover)
+          profit = (trade.sell_price - trade.buy_price) * trade.shares
+          volume = trade.sell_price * trade.shares // Use sell_price for volume calculation
+        } else {
+          // For long positions: profit = (sell_price - buy_price) * shares
+          profit = (trade.sell_price - trade.buy_price) * trade.shares
+          volume = trade.buy_price * trade.shares
+        }
       }
       
       return { profit, volume, trade }
@@ -154,10 +174,20 @@ const Statistics = () => {
     
     let cumulativeProfit = 0
     return sortedTrades.map(trade => {
-      const isShort = trade.position_type === 'short'
-      const profit = isShort 
-        ? (trade.sell_price - trade.buy_price) * trade.shares
-        : (trade.sell_price - trade.buy_price) * trade.shares
+      // Check if this is a profit-only trade
+      const isProfitOnly = trade.trade_type === 'profit_only' || 
+        (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
+      
+      let profit
+      if (isProfitOnly) {
+        profit = trade.sell_price
+      } else {
+        const isShort = trade.position_type === 'short'
+        profit = isShort 
+          ? (trade.sell_price - trade.buy_price) * trade.shares
+          : (trade.sell_price - trade.buy_price) * trade.shares
+      }
+      
       cumulativeProfit += profit
       return {
         date: new Date(trade.buy_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -176,10 +206,21 @@ const Statistics = () => {
       if (!symbolMap[trade.symbol]) {
         symbolMap[trade.symbol] = { profit: 0, count: 0 }
       }
-      const isShort = trade.position_type === 'short'
-      const profit = isShort 
-        ? (trade.sell_price - trade.buy_price) * trade.shares
-        : (trade.sell_price - trade.buy_price) * trade.shares
+      
+      // Check if this is a profit-only trade
+      const isProfitOnly = trade.trade_type === 'profit_only' || 
+        (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
+      
+      let profit
+      if (isProfitOnly) {
+        profit = trade.sell_price
+      } else {
+        const isShort = trade.position_type === 'short'
+        profit = isShort 
+          ? (trade.sell_price - trade.buy_price) * trade.shares
+          : (trade.sell_price - trade.buy_price) * trade.shares
+      }
+      
       symbolMap[trade.symbol].profit += profit
       symbolMap[trade.symbol].count += 1
     })
@@ -194,10 +235,19 @@ const Statistics = () => {
   const getWinLossData = () => {
     const completedTrades = getCompletedTrades()
     const winning = completedTrades.filter(trade => {
-      const isShort = trade.position_type === 'short'
-      const profit = isShort 
-        ? (trade.sell_price - trade.buy_price) * trade.shares
-        : (trade.sell_price - trade.buy_price) * trade.shares
+      // Check if this is a profit-only trade
+      const isProfitOnly = trade.trade_type === 'profit_only' || 
+        (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
+      
+      let profit
+      if (isProfitOnly) {
+        profit = trade.sell_price
+      } else {
+        const isShort = trade.position_type === 'short'
+        profit = isShort 
+          ? (trade.sell_price - trade.buy_price) * trade.shares
+          : (trade.sell_price - trade.buy_price) * trade.shares
+      }
       return profit > 0
     }).length
     const losing = completedTrades.length - winning
