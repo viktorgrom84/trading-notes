@@ -358,10 +358,10 @@ const Statistics = () => {
             color={stats.totalProfit >= 0 ? 'green' : 'red'}
           />
           <StatCard
-            title="Win Rate"
-            value={`${stats.winRate.toFixed(1)}%`}
+            title="Win Rate %"
+            value={`${stats.winRate.toFixed(1)}`}
             icon={<IconTrendingUp size={24} />}
-            color={stats.winRate >= 80 ? 'green' : stats.winRate >= 60 ? 'yellow' : 'red'}
+            color={Number(stats.winRate) >= 65 ? 'green' : 'red'} // Updated threshold
           />
           <StatCard
             title="Avg Profit"

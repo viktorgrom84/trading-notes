@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   Container, 
@@ -40,11 +40,7 @@ const Dashboard = () => {
   const [recentTrades, setRecentTrades] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadTradingData()
-  }, [])
-
-  const loadTradingData = async () => {
+  const loadTradingData = useCallback(async () => {
     try {
       setLoading(true)
       const [trades, statistics] = await Promise.all([
@@ -59,16 +55,20 @@ const Dashboard = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const formatCurrency = (amount) => {
+  useEffect(() => {
+    loadTradingData()
+  }, [loadTradingData])
+
+  const formatCurrency = useCallback((amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount)
-  }
+  }, [])
 
-  const formatDate = (dateString) => {
+  const formatDate = useCallback((dateString) => {
     if (!dateString) return '-'
     try {
       const utcDate = new Date(dateString)
@@ -81,21 +81,21 @@ const Dashboard = () => {
     } catch (error) {
       return '-'
     }
-  }
+  }, [])
 
-  const getProfitColor = (profit) => {
+  const getProfitColor = useCallback((profit) => {
     if (profit > 0) return 'green'
     if (profit < 0) return 'red'
     return 'gray'
-  }
+  }, [])
 
-  const getProfitIcon = (profit) => {
+  const getProfitIcon = useCallback((profit) => {
     if (profit > 0) return <IconArrowUpRight size={16} />
     if (profit < 0) return <IconArrowDownRight size={16} />
     return <IconMinus size={16} />
-  }
+  }, [])
 
-  const StatCard = ({ title, value, icon, color = 'blue' }) => (
+  const StatCard = useCallback(({ title, value, icon, color = 'blue' }) => (
     <Card withBorder radius="md" p="xl">
       <Group justify="space-between">
         <div>
@@ -111,7 +111,33 @@ const Dashboard = () => {
         </ThemeIcon>
       </Group>
     </Card>
-  )
+  ), [getProfitColor, formatCurrency])
+
+  const processedRecentTrades = useMemo(() => {
+    return recentTrades.map((trade) => {
+      // Check if this is a profit-only trade
+      const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
+                               trade.buy_date === trade.sell_date && 
+                               trade.notes && trade.notes.includes('Profit-only trade');
+      
+      let profit;
+      if (trade.sell_price && trade.sell_date) {
+        if (isProfitOnlyTrade) {
+          profit = trade.sell_price; // For profit-only trades, sell_price contains the profit
+        } else {
+          profit = (trade.sell_price - trade.buy_price) * trade.shares;
+        }
+      } else {
+        profit = null;
+      }
+      
+      return {
+        ...trade,
+        isProfitOnlyTrade,
+        profit
+      }
+    })
+  }, [recentTrades])
 
   if (loading) {
     return (
@@ -155,10 +181,10 @@ const Dashboard = () => {
             color={stats.totalProfit >= 0 ? 'green' : 'red'}
           />
           <StatCard
-            title="Win Rate"
-            value={`${stats.winRate.toFixed(1)}%`}
+            title="Win Rate %"
+            value={`${stats.winRate.toFixed(1)}`}
             icon={<IconTrendingUp size={24} />}
-            color={stats.winRate >= 80 ? 'green' : stats.winRate >= 60 ? 'yellow' : 'red'}
+            color={Number(stats.winRate) >= 65 ? 'green' : 'red'} // Updated threshold
           />
           <StatCard
             title="Avg Profit"
@@ -213,62 +239,44 @@ const Dashboard = () => {
                 </Button>
               </Group>
               
-              {recentTrades.length > 0 ? (
+              {processedRecentTrades.length > 0 ? (
                 <Stack gap="sm">
-                  {recentTrades.map((trade) => {
-                    // Check if this is a profit-only trade
-                    const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
-                                             trade.buy_date === trade.sell_date && 
-                                             trade.notes && trade.notes.includes('Profit-only trade');
-                    
-                    let profit;
-                    if (trade.sell_price && trade.sell_date) {
-                      if (isProfitOnlyTrade) {
-                        profit = trade.sell_price; // For profit-only trades, sell_price contains the profit
-                      } else {
-                        profit = (trade.sell_price - trade.buy_price) * trade.shares;
-                      }
-                    } else {
-                      profit = null;
-                    }
-                    
-                    return (
-                      <Paper key={trade.id} withBorder p="md" radius="md">
-                        <Group justify="space-between">
-                          <Group>
-                            <Text fw={600} size="lg">{trade.symbol}</Text>
-                            <Badge 
-                              color={trade.sell_price && trade.sell_date ? 'gray' : 'blue'}
-                              variant="light"
-                            >
-                              {trade.sell_price && trade.sell_date ? 'Closed' : 'Open'}
-                            </Badge>
-                          </Group>
-                          <Group>
-                            {profit !== null ? (
-                              <Group gap="xs">
-                                <ActionIcon size="sm" color={getProfitColor(profit)} variant="light">
-                                  {getProfitIcon(profit)}
-                                </ActionIcon>
-                                <Text fw={600} c={getProfitColor(profit)}>
-                                  {formatCurrency(profit)}
-                                </Text>
-                              </Group>
-                            ) : (
-                              <Text size="sm" c="dimmed">Open position</Text>
-                            )}
-                          </Group>
+                  {processedRecentTrades.map((trade) => (
+                    <Paper key={trade.id} withBorder p="md" radius="md">
+                      <Group justify="space-between">
+                        <Group>
+                          <Text fw={600} size="lg">{trade.symbol}</Text>
+                          <Badge 
+                            color={trade.sell_price && trade.sell_date ? 'gray' : 'blue'}
+                            variant="light"
+                          >
+                            {trade.sell_price && trade.sell_date ? 'Closed' : 'Open'}
+                          </Badge>
                         </Group>
-                        <Text size="sm" c="dimmed" mt="xs">
-                          {isProfitOnlyTrade ? (
-                            `Profit trade • ${formatDate(trade.buy_date)}`
+                        <Group>
+                          {trade.profit !== null ? (
+                            <Group gap="xs">
+                              <ActionIcon size="sm" color={getProfitColor(trade.profit)} variant="light">
+                                {getProfitIcon(trade.profit)}
+                              </ActionIcon>
+                              <Text fw={600} c={getProfitColor(trade.profit)}>
+                                {formatCurrency(trade.profit)}
+                              </Text>
+                            </Group>
                           ) : (
-                            `${trade.shares} shares @ ${formatCurrency(trade.buy_price)} • ${formatDate(trade.buy_date)}`
+                            <Text size="sm" c="dimmed">Open position</Text>
                           )}
-                        </Text>
-                      </Paper>
-                    )
-                  })}
+                        </Group>
+                      </Group>
+                      <Text size="sm" c="dimmed" mt="xs">
+                        {trade.isProfitOnlyTrade ? (
+                          `Profit trade • ${formatDate(trade.buy_date)}`
+                        ) : (
+                          `${trade.shares} shares @ ${formatCurrency(trade.buy_price)} • ${formatDate(trade.buy_date)}`
+                        )}
+                      </Text>
+                    </Paper>
+                  ))}
                 </Stack>
               ) : (
                 <Center py="xl">

@@ -43,8 +43,10 @@ export default async function handler(req, res) {
       return await handleCosts(req, res, decoded)
     } else if (action === 'history') {
       return await handleHistory(req, res, decoded)
+    } else if (action === 'delete') {
+      return await handleDelete(req, res, decoded)
     } else {
-      return res.status(400).json({ message: 'Invalid action. Use: analyze, costs, or history' })
+      return res.status(400).json({ message: 'Invalid action. Use: analyze, costs, history, or delete' })
     }
 
   } catch (error) {
@@ -386,6 +388,47 @@ async function handleHistory(req, res, decoded) {
 
     res.status(200).json({ analysisHistory })
 
+  } finally {
+    client.release()
+  }
+}
+
+async function handleDelete(req, res, decoded) {
+  if (req.method !== 'DELETE') {
+    return res.status(405).json({ message: 'Method not allowed' })
+  }
+
+  const { id } = req.query
+
+  if (!id) {
+    return res.status(400).json({ message: 'Analysis ID is required' })
+  }
+
+  // Delete analysis from database
+  const { Pool } = await import('pg')
+  const pool = new Pool({
+    connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
+    ssl: { rejectUnauthorized: false }
+  })
+  
+  const client = await pool.connect()
+  try {
+    // Delete from both tables
+    await client.query(
+      'DELETE FROM ai_analysis_results WHERE id = $1 AND user_id = $2',
+      [id, decoded.userId]
+    )
+
+    await client.query(
+      'DELETE FROM ai_analysis_costs WHERE id = $1 AND user_id = $2',
+      [id, decoded.userId]
+    )
+
+    res.status(200).json({ message: 'Analysis deleted successfully' })
+
+  } catch (dbError) {
+    console.error('Failed to delete analysis:', dbError)
+    res.status(500).json({ message: 'Failed to delete analysis' })
   } finally {
     client.release()
   }

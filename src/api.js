@@ -138,6 +138,12 @@ class ApiClient {
   async getAnalysisHistory() {
     return this.request('/ai?action=history');
   }
+
+  async deleteAnalysis(analysisId) {
+    return this.request(`/ai?action=delete&id=${analysisId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export default new ApiClient();

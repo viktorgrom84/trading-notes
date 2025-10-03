@@ -30,7 +30,8 @@ import {
   IconInfoCircle,
   IconRefresh,
   IconChartBar,
-  IconShield
+  IconShield,
+  IconTrash
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import apiClient from '../api'
@@ -153,6 +154,33 @@ const AIAnalysis = ({ user }) => {
       })
     } finally {
       setHistoryLoading(false)
+    }
+  }
+
+  const handleDeleteAnalysis = async (analysisId) => {
+    try {
+      await apiClient.deleteAnalysis(analysisId)
+      
+      // Remove from local state
+      setAnalysisHistory(prev => prev.filter(item => item.id !== analysisId))
+      
+      // If the deleted analysis is currently displayed, clear it
+      if (analysis && analysis.id === analysisId) {
+        setAnalysis(null)
+      }
+      
+      notifications.show({
+        title: 'Success',
+        message: 'Analysis deleted successfully',
+        color: 'green',
+      })
+    } catch (error) {
+      console.error('Error deleting analysis:', error)
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to delete analysis',
+        color: 'red',
+      })
     }
   }
 
@@ -363,12 +391,18 @@ const AIAnalysis = ({ user }) => {
                   
                   <Paper p="md" withBorder>
                     <Group gap="sm" mb="xs">
-                      <ThemeIcon size="sm" variant="light" color="purple">
+                      <ThemeIcon size="sm" variant="light" color={Number(analysis.statistics.winRate) >= 65 ? 'green' : 'red'}>
                         <IconPercentage size={16} />
                       </ThemeIcon>
                       <Text size="sm" fw={500}>Win Rate</Text>
                     </Group>
-                    <Text size="xl" fw={700}>{analysis.statistics.winRate.toFixed(1)}%</Text>
+                    <Text 
+                      size="xl" 
+                      fw={700} 
+                      c={Number(analysis.statistics.winRate) >= 65 ? 'green' : 'red'}
+                    >
+                      {analysis.statistics.winRate.toFixed(1)}%
+                    </Text>
                   </Paper>
                 </Group>
               </Stack>
@@ -484,6 +518,16 @@ const AIAnalysis = ({ user }) => {
                             >
                               View
                             </Button>
+                            <Tooltip label="Delete analysis">
+                              <ActionIcon
+                                size="sm"
+                                variant="outline"
+                                color="red"
+                                onClick={() => handleDeleteAnalysis(item.id)}
+                              >
+                                <IconTrash size={14} />
+                              </ActionIcon>
+                            </Tooltip>
                           </Group>
                         </Group>
                         
