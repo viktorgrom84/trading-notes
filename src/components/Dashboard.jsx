@@ -16,7 +16,10 @@ import {
   SimpleGrid,
   Paper,
   Title,
-  ActionIcon
+  ActionIcon,
+  Modal,
+  TextInput,
+  NumberInput
 } from '@mantine/core'
 import { 
   IconPlus, 
@@ -39,6 +42,9 @@ const Dashboard = () => {
   })
   const [recentTrades, setRecentTrades] = useState([])
   const [loading, setLoading] = useState(true)
+  const [performanceTarget, setPerformanceTarget] = useState(0)
+  const [currentPerformance, setCurrentPerformance] = useState(0)
+  const [showTargetModal, setShowTargetModal] = useState(false)
 
   const loadTradingData = useCallback(async () => {
     try {
@@ -59,7 +65,25 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadTradingData()
+    loadPerformanceTarget()
   }, [loadTradingData])
+
+  const loadPerformanceTarget = useCallback(() => {
+    const saved = localStorage.getItem('performanceTarget')
+    if (saved) {
+      setPerformanceTarget(parseFloat(saved))
+    }
+  }, [])
+
+  const savePerformanceTarget = useCallback((target) => {
+    setPerformanceTarget(target)
+    localStorage.setItem('performanceTarget', target.toString())
+  }, [])
+
+  // Calculate current performance based on target + total profit
+  const calculatedPerformance = useMemo(() => {
+    return performanceTarget + stats.totalProfit
+  }, [performanceTarget, stats.totalProfit])
 
   const formatCurrency = useCallback((amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -165,6 +189,43 @@ const Dashboard = () => {
           <Title order={1} mb="sm">Trading Dashboard</Title>
           <Text c="dimmed" size="lg">Track your trading performance and manage your notes</Text>
         </div>
+
+        {/* Performance Tracker */}
+        <Card withBorder radius="md" p="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+          <Group justify="space-between" mb="md">
+            <div>
+              <Title order={3} c="white">Performance Tracker</Title>
+              <Text c="white" size="sm" opacity={0.9}>
+                Track your trading performance against your target
+              </Text>
+            </div>
+            <Button
+              variant="white"
+              size="sm"
+              onClick={() => setShowTargetModal(true)}
+            >
+              Set Target
+            </Button>
+          </Group>
+          
+          <Group justify="space-between" align="center">
+            <div>
+              <Text size="sm" c="white" opacity={0.8}>Current Performance</Text>
+              <Text size="xl" fw={700} c="white">
+                {formatCurrency(calculatedPerformance)}
+              </Text>
+              <Text size="sm" c="white" opacity={0.7}>
+                Target: {formatCurrency(performanceTarget)} + P/L: {formatCurrency(stats.totalProfit)}
+              </Text>
+            </div>
+            <ThemeIcon size={60} variant="white" color="transparent">
+              {calculatedPerformance >= performanceTarget ? 
+                <IconTrendingUp size={30} color="green" /> : 
+                <IconTrendingDown size={30} color="red" />
+              }
+            </ThemeIcon>
+          </Group>
+        </Card>
 
         {/* Stats Cards */}
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
@@ -303,6 +364,52 @@ const Dashboard = () => {
             </Card>
           </Grid.Col>
         </Grid>
+
+        {/* Performance Target Modal */}
+        <Modal
+          opened={showTargetModal}
+          onClose={() => setShowTargetModal(false)}
+          title="Set Performance Target"
+          size="md"
+        >
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Set your starting performance target. This will be your baseline, and your trading P/L will be added/subtracted from this number.
+            </Text>
+            
+            <NumberInput
+              label="Performance Target"
+              placeholder="Enter your target amount"
+              value={performanceTarget}
+              onChange={(value) => setCurrentPerformance(value || 0)}
+              prefix="$"
+              thousandSeparator=","
+              decimalScale={2}
+              size="lg"
+            />
+            
+            <Text size="sm" c="dimmed">
+              Current calculation: {formatCurrency(performanceTarget)} + {formatCurrency(stats.totalProfit)} = {formatCurrency(performanceTarget + stats.totalProfit)}
+            </Text>
+            
+            <Group justify="flex-end" gap="sm">
+              <Button
+                variant="outline"
+                onClick={() => setShowTargetModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  savePerformanceTarget(currentPerformance)
+                  setShowTargetModal(false)
+                }}
+              >
+                Save Target
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Stack>
     </Container>
   )

@@ -19,7 +19,8 @@ import {
   Modal,
   Table,
   ActionIcon,
-  Tooltip
+  Tooltip,
+  Select
 } from '@mantine/core'
 import { 
   IconBrain, 
@@ -47,6 +48,7 @@ const AIAnalysis = ({ user }) => {
   const [analysisHistory, setAnalysisHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyModalOpened, setHistoryModalOpened] = useState(false)
+  const [tradesToAnalyze, setTradesToAnalyze] = useState('all')
 
   useEffect(() => {
     loadTrades()
@@ -58,6 +60,18 @@ const AIAnalysis = ({ user }) => {
   const hasAdminAccess = useMemo(() => {
     return checkAdminAccess(user)
   }, [user?.username])
+
+  // Get filtered trades based on selection
+  const getFilteredTrades = useMemo(() => {
+    if (tradesToAnalyze === 'all') {
+      return trades
+    }
+    
+    const count = parseInt(tradesToAnalyze)
+    // Sort by buy_date descending to get most recent trades first
+    const sortedTrades = [...trades].sort((a, b) => new Date(b.buy_date) - new Date(a.buy_date))
+    return sortedTrades.slice(0, count)
+  }, [trades, tradesToAnalyze])
 
   // Check if user has admin access
   if (!hasAdminAccess) {
@@ -185,7 +199,9 @@ const AIAnalysis = ({ user }) => {
   }
 
   const handleAnalyze = async () => {
-    if (!trades || trades.length === 0) {
+    const filteredTrades = getFilteredTrades
+    
+    if (!filteredTrades || filteredTrades.length === 0) {
       notifications.show({
         title: 'No Data',
         message: 'No trades available for analysis',
@@ -196,17 +212,20 @@ const AIAnalysis = ({ user }) => {
 
     try {
       setLoading(true)
-      const result = await apiClient.analyzeTrades(trades, 'general')
-      // Add analysis type to the result for display
+      const result = await apiClient.analyzeTrades(filteredTrades, 'general')
+      // Add analysis type and trade count to the result for display
       result.analysisType = 'general'
+      result.tradeCount = filteredTrades.length
+      result.totalTrades = trades.length
       setAnalysis(result)
       
       // Refresh analysis history
       await loadAnalysisHistory()
       
+      const tradeText = tradesToAnalyze === 'all' ? 'all trades' : `last ${filteredTrades.length} trades`
       notifications.show({
         title: 'Analysis Complete',
-        message: `Analysis completed successfully. Cost: $${result.cost.estimatedCost.toFixed(4)}`,
+        message: `Analysis of ${tradeText} completed successfully. Cost: $${result.cost.estimatedCost.toFixed(4)}`,
         color: 'green',
       })
     } catch (error) {
@@ -306,7 +325,10 @@ const AIAnalysis = ({ user }) => {
               variant="gradient"
               gradient={{ from: 'purple', to: 'pink' }}
             >
-              Analyze Trades
+              {tradesToAnalyze === 'all' 
+                ? `Analyze All Trades (${trades.length})` 
+                : `Analyze Last ${Math.min(parseInt(tradesToAnalyze), trades.length)} Trades`
+              }
             </Button>
           </Group>
         </Group>
@@ -315,7 +337,7 @@ const AIAnalysis = ({ user }) => {
         <Card withBorder p="md">
           <Stack gap="md">
             <Group justify="space-between">
-              <Text fw={500}>Analysis Type</Text>
+              <Text fw={500}>Analysis Configuration</Text>
               <Badge 
                 color="green"
                 leftSection={<IconChartBar size={16} />}
@@ -323,8 +345,38 @@ const AIAnalysis = ({ user }) => {
                 General Analysis
               </Badge>
             </Group>
+            
+            <Group grow>
+              <div>
+                <Text size="sm" fw={500} mb="xs">Number of Trades to Analyze</Text>
+                <Select
+                  value={tradesToAnalyze}
+                  onChange={setTradesToAnalyze}
+                  data={[
+                    { value: '5', label: 'Last 5 trades' },
+                    { value: '10', label: 'Last 10 trades' },
+                    { value: '15', label: 'Last 15 trades' },
+                    { value: '20', label: 'Last 20 trades' },
+                    { value: 'all', label: 'All trades' }
+                  ]}
+                  placeholder="Select trades to analyze"
+                />
+              </div>
+              <div>
+                <Text size="sm" fw={500} mb="xs">Available Trades</Text>
+                <Text size="lg" fw={700} c="blue">
+                  {trades.length} total trades
+                </Text>
+                {tradesToAnalyze !== 'all' && (
+                  <Text size="sm" c="dimmed">
+                    Will analyze last {Math.min(parseInt(tradesToAnalyze), trades.length)} trades
+                  </Text>
+                )}
+              </div>
+            </Group>
+            
             <Text size="sm" c="dimmed">
-              AI-powered analysis of your trading performance with actionable insights and recommendations.
+              AI-powered analysis of your selected trades with actionable insights and recommendations.
             </Text>
           </Stack>
         </Card>
@@ -336,7 +388,14 @@ const AIAnalysis = ({ user }) => {
             <Card withBorder>
               <Stack gap="md">
                 <Group justify="space-between">
-                  <Title order={3}>Performance Summary</Title>
+                  <div>
+                    <Title order={3}>Performance Summary</Title>
+                    {analysis.tradeCount && analysis.totalTrades && (
+                      <Text size="sm" c="dimmed">
+                        Analyzing {analysis.tradeCount} of {analysis.totalTrades} total trades
+                      </Text>
+                    )}
+                  </div>
                   <Badge 
                     color="green"
                     leftSection={<IconChartBar size={16} />}
