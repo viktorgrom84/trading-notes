@@ -117,6 +117,19 @@ export default async function handler(req, res) {
         );
       `);
 
+      // Create user settings table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_settings (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          setting_key VARCHAR(50) NOT NULL,
+          setting_value TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, setting_key)
+        );
+      `);
+
       res.json({ message: 'Database initialized successfully' });
     } finally {
       client.release();

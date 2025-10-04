@@ -68,16 +68,34 @@ const Dashboard = () => {
     loadPerformanceTarget()
   }, [loadTradingData])
 
-  const loadPerformanceTarget = useCallback(() => {
-    const saved = localStorage.getItem('performanceTarget')
-    if (saved) {
-      setPerformanceTarget(parseFloat(saved))
+  const loadPerformanceTarget = useCallback(async () => {
+    try {
+      const settings = await apiClient.getSettings()
+      if (settings.performanceTarget) {
+        setPerformanceTarget(parseFloat(settings.performanceTarget))
+      }
+    } catch (error) {
+      console.error('Failed to load performance target:', error)
+      // Fallback to localStorage for existing users
+      const saved = localStorage.getItem('performanceTarget')
+      if (saved) {
+        setPerformanceTarget(parseFloat(saved))
+      }
     }
   }, [])
 
-  const savePerformanceTarget = useCallback((target) => {
-    setPerformanceTarget(target)
-    localStorage.setItem('performanceTarget', target.toString())
+  const savePerformanceTarget = useCallback(async (target) => {
+    try {
+      await apiClient.setSetting('performanceTarget', target.toString())
+      setPerformanceTarget(target)
+      // Also save to localStorage as backup
+      localStorage.setItem('performanceTarget', target.toString())
+    } catch (error) {
+      console.error('Failed to save performance target:', error)
+      // Fallback to localStorage
+      setPerformanceTarget(target)
+      localStorage.setItem('performanceTarget', target.toString())
+    }
   }, [])
 
   // Calculate current performance based on target + total profit

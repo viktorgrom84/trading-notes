@@ -144,6 +144,18 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // User settings methods
+  async getSettings() {
+    return this.request('/settings');
+  }
+
+  async setSetting(key, value) {
+    return this.request('/settings', {
+      method: 'POST',
+      body: JSON.stringify({ key, value }),
+    });
+  }
 }
 
 export default new ApiClient();
