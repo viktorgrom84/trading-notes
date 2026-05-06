@@ -12,13 +12,11 @@ import {
   Badge, 
   Skeleton,
   Center,
-  Box,
   SimpleGrid,
   Paper,
   Title,
   ActionIcon,
   Modal,
-  TextInput,
   NumberInput
 } from '@mantine/core'
 import { 
@@ -29,7 +27,8 @@ import {
   IconChartBar,
   IconArrowUpRight,
   IconArrowDownRight,
-  IconMinus
+  IconMinus,
+  IconCalendar
 } from '@tabler/icons-react'
 import apiClient from '../api'
 
@@ -38,8 +37,9 @@ const Dashboard = () => {
     totalTrades: 0,
     totalProfit: 0,
     winRate: 0,
-    avgProfit: 0
+    avgProfit: 0,
   })
+  const [allTrades, setAllTrades] = useState([])
   const [recentTrades, setRecentTrades] = useState([])
   const [loading, setLoading] = useState(true)
   const [performanceTarget, setPerformanceTarget] = useState(0)
@@ -54,6 +54,7 @@ const Dashboard = () => {
         apiClient.getStatistics()
       ])
       
+      setAllTrades(trades)
       setRecentTrades(trades.slice(0, 5))
       setStats(statistics)
     } catch (error) {
@@ -137,6 +138,47 @@ const Dashboard = () => {
     return <IconMinus size={16} />
   }, [])
 
+  // Same helpers as Calendar.jsx
+  const getLocalDateString = useCallback((date) => {
+    return new Date(date).toLocaleDateString('en-CA') // "YYYY-MM-DD" in local timezone
+  }, [])
+
+  const calculateTradeProfit = useCallback((trade) => {
+    if (trade.trade_type === 'profit_only') return Number(trade.sell_price)
+    const isShort = trade.position_type === 'short'
+    const hasData = isShort
+      ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
+      : trade.sell_price && trade.sell_date
+    if (!hasData) return null
+    return (trade.sell_price - trade.buy_price) * trade.shares
+  }, [])
+
+  const { performanceThisMonth, performanceThisYear } = useMemo(() => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() // 0-indexed
+
+    let month = 0
+    let year = 0
+
+    allTrades.forEach(trade => {
+      if (!trade.sell_date) return
+      const profit = calculateTradeProfit(trade)
+      if (profit === null) return
+
+      const [y, m] = getLocalDateString(trade.sell_date).split('-').map(Number)
+      if (y === currentYear) {
+        year += profit
+        if (m - 1 === currentMonth) month += profit
+      }
+    })
+
+    return {
+      performanceThisMonth: Math.round(month * 100) / 100,
+      performanceThisYear: Math.round(year * 100) / 100,
+    }
+  }, [allTrades, getLocalDateString, calculateTradeProfit])
+
   const StatCard = useCallback(({ title, value, icon, color = 'blue' }) => (
     <Card withBorder radius="md" p="xl">
       <Group justify="space-between">
@@ -145,7 +187,7 @@ const Dashboard = () => {
             {title}
           </Text>
           <Text size="xl" fw={700} c={getProfitColor(value)}>
-            {title === 'Total Trades' ? value : (typeof value === 'number' && value !== 0 ? formatCurrency(value) : value)}
+            {title === 'Total Trades' || title === 'Win Rate %' ? value : formatCurrency(typeof value === 'number' ? value : 0)}
           </Text>
         </div>
         <ThemeIcon size="xl" variant="light" color={color}>
@@ -246,7 +288,7 @@ const Dashboard = () => {
         </Card>
 
         {/* Stats Cards */}
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
           <StatCard
             title="Total Trades"
             value={stats.totalTrades}
@@ -263,13 +305,25 @@ const Dashboard = () => {
             title="Win Rate %"
             value={`${stats.winRate.toFixed(1)}`}
             icon={<IconTrendingUp size={24} />}
-            color={Number(stats.winRate) >= 65 ? 'green' : 'red'} // Updated threshold
+            color={Number(stats.winRate) >= 65 ? 'green' : 'red'}
           />
           <StatCard
             title="Avg Profit"
             value={stats.avgProfitPerTrade || 0}
             icon={<IconTrendingDown size={24} />}
             color={(stats.avgProfitPerTrade || 0) >= 0 ? 'green' : 'red'}
+          />
+          <StatCard
+            title="Performance This Month"
+            value={performanceThisMonth}
+            icon={<IconCalendar size={24} />}
+            color={performanceThisMonth >= 0 ? 'green' : 'red'}
+          />
+          <StatCard
+            title="Performance This Year"
+            value={performanceThisYear}
+            icon={<IconCalendar size={24} />}
+            color={performanceThisYear >= 0 ? 'green' : 'red'}
           />
         </SimpleGrid>
 

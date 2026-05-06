@@ -1,6 +1,33 @@
 import { Pool } from 'pg';
 import { verifyToken } from './auth.js';
 
+/** Returns { year, month (0-indexed) } from a pg DATE value (Date object or ISO string). */
+function parseDateYearMonth(dateValue) {
+  if (!dateValue) return null;
+  // pg returns DATE as a Date object (midnight UTC) or as an ISO "YYYY-MM-DD" string
+  const iso = dateValue instanceof Date ? dateValue.toISOString() : String(dateValue);
+  const parts = iso.slice(0, 10).split('-').map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
+  return { year: parts[0], month: parts[1] - 1 };
+}
+
+function tradeProfit(trade) {
+  const isProfitOnlyTrade =
+    trade.trade_type === 'profit_only' ||
+    (trade.shares === 1 &&
+      Number(trade.buy_price) === 0 &&
+      trade.buy_date === trade.sell_date &&
+      trade.notes &&
+      trade.notes.includes('Profit-only trade'));
+
+  if (isProfitOnlyTrade) {
+    return Number(trade.sell_price);
+  }
+  const buyValue = Number(trade.buy_price) * Number(trade.shares);
+  const sellValue = Number(trade.sell_price) * Number(trade.shares);
+  return sellValue - buyValue;
+}
+
 const pool = new Pool({
   connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
   ssl: {
@@ -53,28 +80,33 @@ export default async function handler(req, res) {
       let winningTrades = 0;
       let losingTrades = 0;
 
+      const nowYear = new Date().getUTCFullYear();
+      const nowMonth = new Date().getUTCMonth();
+      let performanceThisMonth = 0;
+      let performanceThisYear = 0;
+
       completedTrades.forEach(trade => {
-        // Check if this is a profit-only trade
-        const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
-                                 trade.buy_date === trade.sell_date && 
-                                 trade.notes && trade.notes.includes('Profit-only trade');
-        
-        let profit;
-        let buyValue;
-        
-        if (isProfitOnlyTrade) {
-          // For profit-only trades, the profit is stored in sell_price
-          profit = trade.sell_price;
-          buyValue = 0; // No investment for profit-only trades
-        } else {
-          // Regular trade calculation
-          buyValue = trade.buy_price * trade.shares;
-          const sellValue = trade.sell_price * trade.shares;
-          profit = sellValue - buyValue;
-        }
-        
+        const profit = tradeProfit(trade);
+        const isProfitOnlyTrade =
+          trade.trade_type === 'profit_only' ||
+          (trade.shares === 1 &&
+            Number(trade.buy_price) === 0 &&
+            trade.notes &&
+            trade.notes.includes('Profit-only trade'));
+        const buyValue = isProfitOnlyTrade ? 0 : Number(trade.buy_price) * Number(trade.shares);
+
         totalInvested += buyValue;
         totalProfit += profit;
+
+        const exitDate = parseDateYearMonth(trade.sell_date);
+        if (exitDate) {
+          if (exitDate.year === nowYear && exitDate.month === nowMonth) {
+            performanceThisMonth += profit;
+          }
+          if (exitDate.year === nowYear) {
+            performanceThisYear += profit;
+          }
+        }
         
         if (profit > 0) {
           winningTrades++;
@@ -98,6 +130,8 @@ export default async function handler(req, res) {
         winRate: Math.round(winRate * 100) / 100,
         avgProfitPerTrade: Math.round(avgProfitPerTrade * 100) / 100,
         roi: Math.round(roi * 100) / 100,
+        performanceThisMonth: Math.round(performanceThisMonth * 100) / 100,
+        performanceThisYear: Math.round(performanceThisYear * 100) / 100,
         recentTrades: trades.slice(0, 5)
       });
     } finally {
