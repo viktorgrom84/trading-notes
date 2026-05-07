@@ -25,7 +25,9 @@ import {
   IconChevronDown,
   IconShield,
   IconBrain,
-  IconChartCandle
+  IconChartCandle,
+  IconReportMoney,
+  IconWorld
 } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
 import { checkAdminAccess } from '../utils/admin'
@@ -46,6 +48,8 @@ const Navbar = ({ user, onLogout }) => {
     { path: '/ai-analysis', label: 'AI Analysis', icon: IconBrain },
     { path: '/tradingview-mcp', label: 'Tradingview mcp', icon: IconChartCandle },
     { path: '/calendar', label: 'Calendar', icon: IconCalendar },
+    { path: '/earnings', label: 'Earnings', icon: IconReportMoney },
+    { path: '/economic-events', label: 'Economic Events', icon: IconWorld },
     { path: '/admin', label: 'Admin', icon: IconShield, adminOnly: true }
   ]
 

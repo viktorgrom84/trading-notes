@@ -14,6 +14,8 @@ import Calendar from './components/Calendar'
 import Admin from './components/Admin'
 import AIAnalysis from './components/AIAnalysis'
 import TradingViewMCP from './components/TradingViewMCP'
+import Earnings from './components/Earnings'
+import EconomicEvents from './components/EconomicEvents'
 import Navbar from './components/Navbar'
 import apiClient from './api'
 
@@ -69,6 +71,8 @@ function App() {
                     <Route path="/calendar" element={<Calendar />} />
                     <Route path="/ai-analysis" element={<AIAnalysis user={user} />} />
                     <Route path="/tradingview-mcp" element={<TradingViewMCP />} />
+                    <Route path="/earnings" element={<Earnings />} />
+                    <Route path="/economic-events" element={<EconomicEvents />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
