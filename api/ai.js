@@ -1,10 +1,12 @@
+import { Pool } from 'pg'
 import { verifyToken } from './auth.js'
 
-// Check if user is admin
-const isAdmin = (username) => {
-  const adminUsername = process.env.ADMIN_USERNAME
-  return username === adminUsername
-}
+const pool = new Pool({
+  connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
+  ssl: { rejectUnauthorized: false }
+})
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 export default async function handler(req, res) {
   // Set CORS headers
@@ -28,11 +30,6 @@ export default async function handler(req, res) {
     const decoded = verifyToken(token)
     if (!decoded) {
       return res.status(401).json({ message: 'Invalid token' })
-    }
-
-    // Check if user is admin
-    if (!isAdmin(decoded.username)) {
-      return res.status(403).json({ message: 'Access denied. Admin privileges required.' })
     }
 
     const { action } = req.query
@@ -69,6 +66,37 @@ async function handleAnalyze(req, res, decoded) {
 
   if (!trades || !Array.isArray(trades) || trades.length === 0) {
     return res.status(400).json({ message: 'Trades data is required' })
+  }
+
+  // Server-side weekly rate limit — enforced in DB, not bypassable from the client
+  const client = await pool.connect()
+  try {
+    const result = await client.query(
+      `SELECT setting_value FROM user_settings WHERE user_id = $1 AND setting_key = 'aiAnalysisLastUsed'`,
+      [decoded.userId]
+    )
+    if (result.rows.length > 0) {
+      const lastUsed = new Date(result.rows[0].setting_value)
+      const msSinceLast = Date.now() - lastUsed.getTime()
+      if (msSinceLast < WEEK_MS) {
+        const nextAvailable = new Date(lastUsed.getTime() + WEEK_MS)
+        return res.status(429).json({
+          message: 'Weekly limit reached. One analysis per week per user.',
+          nextAvailable: nextAvailable.toISOString()
+        })
+      }
+    }
+
+    // Stamp the timestamp now, before calling OpenAI, so double-clicks can't slip through
+    await client.query(
+      `INSERT INTO user_settings (user_id, setting_key, setting_value, updated_at)
+       VALUES ($1, 'aiAnalysisLastUsed', $2, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id, setting_key)
+       DO UPDATE SET setting_value = $2, updated_at = CURRENT_TIMESTAMP`,
+      [decoded.userId, new Date().toISOString()]
+    )
+  } finally {
+    client.release()
   }
 
   // Get OpenAI API key from environment

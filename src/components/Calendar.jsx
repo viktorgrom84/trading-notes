@@ -66,7 +66,16 @@ const Calendar = () => {
 
   const calculateProfit = (trade) => {
     if (trade.trade_type === 'profit_only') {
-      return trade.sell_price // For profit-only trades, sell_price contains the profit
+      return trade.sell_price
+    }
+
+    if (trade.trade_type === 'option') {
+      const isShort = trade.position_type === 'short'
+      const premium = parseFloat(trade.buy_price)
+      const closePrice = parseFloat(trade.sell_price)
+      return isShort
+        ? (premium - closePrice) * trade.shares * 100
+        : (closePrice - premium) * trade.shares * 100
     }
     
     const isShort = trade.position_type === 'short'

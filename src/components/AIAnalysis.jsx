@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
   Container, 
-  Paper, 
   Button, 
   Title, 
   Text, 
@@ -11,32 +10,31 @@ import {
   Center,
   ThemeIcon,
   Skeleton,
-  SegmentedControl,
   Alert,
   Badge,
-  Divider,
   ScrollArea,
   Modal,
   Table,
   ActionIcon,
   Tooltip,
-  Select
+  Select,
+  Paper
 } from '@mantine/core'
 import { 
   IconBrain, 
   IconTrendingUp, 
-  IconTrendingDown, 
-  IconCurrencyDollar,
+  IconTrendingDown,
   IconPercentage,
   IconInfoCircle,
   IconRefresh,
   IconChartBar,
-  IconShield,
-  IconTrash
+  IconTrash,
+  IconClock
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import apiClient from '../api'
-import { checkAdminAccess } from '../utils/admin'
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 const AIAnalysis = ({ user }) => {
   const [trades, setTrades] = useState([])
@@ -49,54 +47,58 @@ const AIAnalysis = ({ user }) => {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyModalOpened, setHistoryModalOpened] = useState(false)
   const [tradesToAnalyze, setTradesToAnalyze] = useState('all')
+  const [lastAnalysisDate, setLastAnalysisDate] = useState(null)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
 
   useEffect(() => {
     loadTrades()
     loadCostData()
     loadAnalysisHistory()
+    loadLastAnalysisDate()
   }, [])
 
-  // Memoize admin access check to prevent unnecessary re-renders
-  const hasAdminAccess = useMemo(() => {
-    return checkAdminAccess(user)
-  }, [user?.username])
+  const loadLastAnalysisDate = useCallback(async () => {
+    try {
+      const settings = await apiClient.getSettings()
+      if (settings.aiAnalysisLastUsed) {
+        setLastAnalysisDate(new Date(settings.aiAnalysisLastUsed))
+      }
+    } catch {
+      const saved = localStorage.getItem('aiAnalysisLastUsed')
+      if (saved) setLastAnalysisDate(new Date(saved))
+    } finally {
+      setSettingsLoaded(true)
+    }
+  }, [])
+
+  const nextAvailableDate = useMemo(() => {
+    if (!lastAnalysisDate) return null
+    return new Date(lastAnalysisDate.getTime() + WEEK_MS)
+  }, [lastAnalysisDate])
+
+  const canAnalyze = useMemo(() => {
+    if (!lastAnalysisDate) return true
+    return Date.now() - lastAnalysisDate.getTime() >= WEEK_MS
+  }, [lastAnalysisDate])
+
+  const timeUntilNext = useMemo(() => {
+    if (!nextAvailableDate || canAnalyze) return ''
+    const ms = nextAvailableDate.getTime() - Date.now()
+    const days = Math.floor(ms / (24 * 60 * 60 * 1000))
+    const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
+    const minutes = Math.floor((ms % (60 * 60 * 1000)) / 60000)
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${minutes}m`
+    return `${minutes}m`
+  }, [nextAvailableDate, canAnalyze])
 
   // Get filtered trades based on selection
   const getFilteredTrades = useMemo(() => {
-    if (tradesToAnalyze === 'all') {
-      return trades
-    }
-    
+    if (tradesToAnalyze === 'all') return trades
     const count = parseInt(tradesToAnalyze)
-    // Sort by buy_date descending to get most recent trades first
     const sortedTrades = [...trades].sort((a, b) => new Date(b.buy_date) - new Date(a.buy_date))
     return sortedTrades.slice(0, count)
   }, [trades, tradesToAnalyze])
-
-  // Check if user has admin access
-  if (!hasAdminAccess) {
-    return (
-      <Container size="xl" py="xl">
-        <Card withBorder>
-          <Center py="xl">
-            <Stack align="center" gap="md">
-              <ThemeIcon size="xl" variant="light" color="red">
-                <IconShield size={32} />
-              </ThemeIcon>
-              <div style={{ textAlign: 'center' }}>
-                <Text size="lg" fw={500} mb="xs">
-                  Access Denied
-                </Text>
-                <Text c="dimmed">
-                  AI Analysis feature is only available to administrators.
-                </Text>
-              </div>
-            </Stack>
-          </Center>
-        </Card>
-      </Container>
-    )
-  }
 
   const loadTrades = async () => {
     try {
@@ -199,6 +201,15 @@ const AIAnalysis = ({ user }) => {
   }
 
   const handleAnalyze = async () => {
+    if (!canAnalyze) {
+      notifications.show({
+        title: 'Weekly Limit Reached',
+        message: `Your next analysis is available in ${timeUntilNext}.`,
+        color: 'orange',
+      })
+      return
+    }
+
     const filteredTrades = getFilteredTrades
     
     if (!filteredTrades || filteredTrades.length === 0) {
@@ -213,13 +224,21 @@ const AIAnalysis = ({ user }) => {
     try {
       setLoading(true)
       const result = await apiClient.analyzeTrades(filteredTrades, 'general')
-      // Add analysis type and trade count to the result for display
       result.analysisType = 'general'
       result.tradeCount = filteredTrades.length
       result.totalTrades = trades.length
       setAnalysis(result)
+
+      // Save last used timestamp
+      const now = new Date()
+      try {
+        await apiClient.setSetting('aiAnalysisLastUsed', now.toISOString())
+      } catch {
+        // fall through to localStorage
+      }
+      localStorage.setItem('aiAnalysisLastUsed', now.toISOString())
+      setLastAnalysisDate(now)
       
-      // Refresh analysis history
       await loadAnalysisHistory()
       
       const tradeText = tradesToAnalyze === 'all' ? 'all trades' : `last ${filteredTrades.length} trades`
@@ -230,15 +249,24 @@ const AIAnalysis = ({ user }) => {
       })
     } catch (error) {
       console.error('Error analyzing trades:', error)
-      
-      // Check if it's a 404 error (API not deployed)
-      if (error.message.includes('404') || error.message.includes('Not Found')) {
+
+      if (error.message.includes('429') || error.message.toLowerCase().includes('weekly limit')) {
+        // Server rejected — sync the local state so the UI reflects reality
+        await loadLastAnalysisDate()
+        notifications.show({
+          title: 'Weekly Limit Reached',
+          message: 'You have already used your analysis this week.',
+          color: 'orange',
+        })
+      } else if (error.message.includes('404') || error.message.includes('Not Found')) {
         notifications.show({
           title: 'AI Analysis Not Available',
-          message: 'AI analysis feature needs to be deployed to Vercel. Please deploy the app to use this feature.',
+          message: 'AI analysis feature needs to be deployed to Vercel.',
           color: 'orange',
         })
       } else {
+        // If OpenAI failed after we stamped the timestamp, roll it back locally
+        // (the server already recorded it — user can contact admin)
         notifications.show({
           title: 'Analysis Failed',
           message: 'Failed to analyze trades. Please try again.',
@@ -318,20 +346,31 @@ const AIAnalysis = ({ user }) => {
               Cost Info
             </Button>
             <Button
-              leftSection={<IconBrain size={16} />}
+              leftSection={canAnalyze ? <IconBrain size={16} /> : <IconClock size={16} />}
               onClick={handleAnalyze}
               loading={loading}
-              disabled={!trades || trades.length === 0}
+              disabled={!trades || trades.length === 0 || !canAnalyze || !settingsLoaded}
               variant="gradient"
-              gradient={{ from: 'purple', to: 'pink' }}
+              gradient={canAnalyze ? { from: 'purple', to: 'pink' } : { from: 'gray', to: 'gray' }}
             >
-              {tradesToAnalyze === 'all' 
-                ? `Analyze All Trades (${trades.length})` 
-                : `Analyze Last ${Math.min(parseInt(tradesToAnalyze), trades.length)} Trades`
+              {!canAnalyze
+                ? `Available in ${timeUntilNext}`
+                : tradesToAnalyze === 'all'
+                  ? `Analyze All Trades (${trades.length})`
+                  : `Analyze Last ${Math.min(parseInt(tradesToAnalyze), trades.length)} Trades`
               }
             </Button>
           </Group>
         </Group>
+
+        {/* Weekly limit banner */}
+        {settingsLoaded && !canAnalyze && (
+          <Alert icon={<IconClock size={16} />} color="orange" title="Weekly limit reached">
+            You've used your AI analysis for this week. Your next analysis will be available on{' '}
+            <strong>{nextAvailableDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
+            {' '}({timeUntilNext} from now). You can still view your previous analyses in History.
+          </Alert>
+        )}
 
         {/* Analysis Type Selection */}
         <Card withBorder p="md">

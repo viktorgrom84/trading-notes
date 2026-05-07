@@ -17,7 +17,9 @@ import {
   Title,
   ActionIcon,
   Modal,
-  NumberInput
+  NumberInput,
+  Progress,
+  RingProgress
 } from '@mantine/core'
 import { 
   IconPlus, 
@@ -28,11 +30,15 @@ import {
   IconArrowUpRight,
   IconArrowDownRight,
   IconMinus,
-  IconCalendar
+  IconCalendar,
+  IconTarget,
+  IconEdit
 } from '@tabler/icons-react'
 import apiClient from '../api'
 
-const Dashboard = () => {
+const PERFORMANCE_TRACKER_USER = 'viktorgrom84@gmail.com'
+
+const Dashboard = ({ user }) => {
   const [stats, setStats] = useState({
     totalTrades: 0,
     totalProfit: 0,
@@ -45,6 +51,9 @@ const Dashboard = () => {
   const [performanceTarget, setPerformanceTarget] = useState(0)
   const [currentPerformance, setCurrentPerformance] = useState(0)
   const [showTargetModal, setShowTargetModal] = useState(false)
+  const [yearlyGoal, setYearlyGoal] = useState(0)
+  const [goalInput, setGoalInput] = useState(0)
+  const [showGoalModal, setShowGoalModal] = useState(false)
 
   const loadTradingData = useCallback(async () => {
     try {
@@ -67,6 +76,7 @@ const Dashboard = () => {
   useEffect(() => {
     loadTradingData()
     loadPerformanceTarget()
+    loadYearlyGoal()
   }, [loadTradingData])
 
   const loadPerformanceTarget = useCallback(async () => {
@@ -96,6 +106,37 @@ const Dashboard = () => {
       // Fallback to localStorage
       setPerformanceTarget(target)
       localStorage.setItem('performanceTarget', target.toString())
+    }
+  }, [])
+
+  const loadYearlyGoal = useCallback(async () => {
+    try {
+      const settings = await apiClient.getSettings()
+      if (settings.yearlyGoal) {
+        const val = parseFloat(settings.yearlyGoal)
+        setYearlyGoal(val)
+        setGoalInput(val)
+      }
+    } catch {
+      const saved = localStorage.getItem('yearlyGoal')
+      if (saved) {
+        const val = parseFloat(saved)
+        setYearlyGoal(val)
+        setGoalInput(val)
+      }
+    }
+  }, [])
+
+  const saveYearlyGoal = useCallback(async (goal) => {
+    try {
+      await apiClient.setSetting('yearlyGoal', goal.toString())
+      setYearlyGoal(goal)
+      setGoalInput(goal)
+      localStorage.setItem('yearlyGoal', goal.toString())
+    } catch {
+      setYearlyGoal(goal)
+      setGoalInput(goal)
+      localStorage.setItem('yearlyGoal', goal.toString())
     }
   }, [])
 
@@ -145,6 +186,17 @@ const Dashboard = () => {
 
   const calculateTradeProfit = useCallback((trade) => {
     if (trade.trade_type === 'profit_only') return Number(trade.sell_price)
+
+    if (trade.trade_type === 'option') {
+      if (trade.sell_price === null || trade.sell_price === undefined || !trade.sell_date) return null
+      const isShort = trade.position_type === 'short'
+      const premium = parseFloat(trade.buy_price)
+      const closePrice = parseFloat(trade.sell_price)
+      return isShort
+        ? (premium - closePrice) * trade.shares * 100
+        : (closePrice - premium) * trade.shares * 100
+    }
+
     const isShort = trade.position_type === 'short'
     const hasData = isShort
       ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
@@ -250,8 +302,8 @@ const Dashboard = () => {
           <Text c="dimmed" size="lg">Track your trading performance and manage your notes</Text>
         </div>
 
-        {/* Performance Tracker */}
-        <Card withBorder radius="md" p="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+        {/* Performance Tracker — visible only to privileged user */}
+        {user?.username === PERFORMANCE_TRACKER_USER && <Card withBorder radius="md" p="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
           <Group justify="space-between" mb="md">
             <div>
               <Title order={3} c="white">Performance Tracker</Title>
@@ -285,6 +337,39 @@ const Dashboard = () => {
               }
             </ThemeIcon>
           </Group>
+        </Card>}
+
+        {/* Yearly Goal Banner */}
+        <Card withBorder radius="md" p="md">
+          <Group justify="space-between" align="center">
+            <Group gap="sm">
+              <ThemeIcon size="lg" variant="light" color="violet">
+                <IconTarget size={18} />
+              </ThemeIcon>
+              <div>
+                {yearlyGoal > 0 ? (
+                  <>
+                    <Text fw={600} size="sm">Yearly Goal: {formatCurrency(yearlyGoal)}</Text>
+                    <Text size="xs" c="dimmed">{formatCurrency(yearlyGoal / 12)} / month</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text fw={600} size="sm">No yearly goal set</Text>
+                    <Text size="xs" c="dimmed">Set a goal to track monthly & yearly progress</Text>
+                  </>
+                )}
+              </div>
+            </Group>
+            <Button
+              variant="light"
+              color="violet"
+              size="xs"
+              leftSection={yearlyGoal > 0 ? <IconEdit size={14} /> : <IconTarget size={14} />}
+              onClick={() => setShowGoalModal(true)}
+            >
+              {yearlyGoal > 0 ? 'Edit Goal' : 'Set Goal'}
+            </Button>
+          </Group>
         </Card>
 
         {/* Stats Cards */}
@@ -313,18 +398,103 @@ const Dashboard = () => {
             icon={<IconTrendingDown size={24} />}
             color={(stats.avgProfitPerTrade || 0) >= 0 ? 'green' : 'red'}
           />
-          <StatCard
-            title="Performance This Month"
-            value={performanceThisMonth}
-            icon={<IconCalendar size={24} />}
-            color={performanceThisMonth >= 0 ? 'green' : 'red'}
-          />
-          <StatCard
-            title="Performance This Year"
-            value={performanceThisYear}
-            icon={<IconCalendar size={24} />}
-            color={performanceThisYear >= 0 ? 'green' : 'red'}
-          />
+
+          {/* Performance This Month — goal-aware */}
+          {yearlyGoal > 0 ? (() => {
+            const monthlyGoal = yearlyGoal / 12
+            const pct = Math.min(Math.max((performanceThisMonth / monthlyGoal) * 100, 0), 100)
+            const remaining = monthlyGoal - performanceThisMonth
+            const over = performanceThisMonth > monthlyGoal
+            return (
+              <Card withBorder radius="md" p="xl">
+                <Group justify="space-between" mb="xs">
+                  <div>
+                    <Text size="sm" c="dimmed" fw={500}>Performance This Month</Text>
+                    <Text size="xl" fw={700} c={getProfitColor(performanceThisMonth)}>
+                      {formatCurrency(performanceThisMonth)}
+                    </Text>
+                  </div>
+                  <RingProgress
+                    size={56}
+                    thickness={5}
+                    sections={[{ value: pct, color: over ? 'green' : performanceThisMonth < 0 ? 'red' : 'blue' }]}
+                    label={
+                      <Text ta="center" size="9px" fw={700} c={over ? 'green' : 'dimmed'}>
+                        {Math.round(pct)}%
+                      </Text>
+                    }
+                  />
+                </Group>
+                <Progress
+                  value={pct}
+                  color={over ? 'green' : performanceThisMonth < 0 ? 'red' : 'blue'}
+                  size="sm"
+                  radius="xl"
+                  mb={6}
+                />
+                <Text size="xs" c={over ? 'green' : 'dimmed'}>
+                  {over
+                    ? `+${formatCurrency(performanceThisMonth - monthlyGoal)} above goal`
+                    : `${formatCurrency(remaining)} remaining of ${formatCurrency(monthlyGoal)}`}
+                </Text>
+              </Card>
+            )
+          })() : (
+            <StatCard
+              title="Performance This Month"
+              value={performanceThisMonth}
+              icon={<IconCalendar size={24} />}
+              color={performanceThisMonth >= 0 ? 'green' : 'red'}
+            />
+          )}
+
+          {/* Performance This Year — goal-aware */}
+          {yearlyGoal > 0 ? (() => {
+            const pct = Math.min(Math.max((performanceThisYear / yearlyGoal) * 100, 0), 100)
+            const remaining = yearlyGoal - performanceThisYear
+            const over = performanceThisYear > yearlyGoal
+            return (
+              <Card withBorder radius="md" p="xl">
+                <Group justify="space-between" mb="xs">
+                  <div>
+                    <Text size="sm" c="dimmed" fw={500}>Performance This Year</Text>
+                    <Text size="xl" fw={700} c={getProfitColor(performanceThisYear)}>
+                      {formatCurrency(performanceThisYear)}
+                    </Text>
+                  </div>
+                  <RingProgress
+                    size={56}
+                    thickness={5}
+                    sections={[{ value: pct, color: over ? 'green' : performanceThisYear < 0 ? 'red' : 'blue' }]}
+                    label={
+                      <Text ta="center" size="9px" fw={700} c={over ? 'green' : 'dimmed'}>
+                        {Math.round(pct)}%
+                      </Text>
+                    }
+                  />
+                </Group>
+                <Progress
+                  value={pct}
+                  color={over ? 'green' : performanceThisYear < 0 ? 'red' : 'blue'}
+                  size="sm"
+                  radius="xl"
+                  mb={6}
+                />
+                <Text size="xs" c={over ? 'green' : 'dimmed'}>
+                  {over
+                    ? `+${formatCurrency(performanceThisYear - yearlyGoal)} above goal`
+                    : `${formatCurrency(remaining)} remaining of ${formatCurrency(yearlyGoal)}`}
+                </Text>
+              </Card>
+            )
+          })() : (
+            <StatCard
+              title="Performance This Year"
+              value={performanceThisYear}
+              icon={<IconCalendar size={24} />}
+              color={performanceThisYear >= 0 ? 'green' : 'red'}
+            />
+          )}
         </SimpleGrid>
 
         {/* Main Content */}
@@ -437,8 +607,54 @@ const Dashboard = () => {
           </Grid.Col>
         </Grid>
 
-        {/* Performance Target Modal */}
+        {/* Yearly Goal Modal — available to all users */}
         <Modal
+          opened={showGoalModal}
+          onClose={() => setShowGoalModal(false)}
+          title="Set Yearly Goal"
+          size="md"
+        >
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Set your yearly profit goal. For example, a $12,000 goal means $1,000 per month. Your Performance This Month and This Year cards will show your progress.
+            </Text>
+            <NumberInput
+              label="Yearly Goal"
+              description={goalInput > 0 ? `Monthly target: ${formatCurrency(goalInput / 12)}` : undefined}
+              placeholder="e.g. 12000"
+              value={goalInput}
+              onChange={(value) => setGoalInput(value || 0)}
+              prefix="$"
+              thousandSeparator=","
+              decimalScale={2}
+              min={0}
+              size="lg"
+            />
+            <Group justify="flex-end" gap="sm">
+              <Button variant="outline" onClick={() => setShowGoalModal(false)}>
+                Cancel
+              </Button>
+              {yearlyGoal > 0 && (
+                <Button
+                  color="red"
+                  variant="subtle"
+                  onClick={() => { saveYearlyGoal(0); setShowGoalModal(false) }}
+                >
+                  Remove Goal
+                </Button>
+              )}
+              <Button
+                onClick={() => { saveYearlyGoal(goalInput); setShowGoalModal(false) }}
+                disabled={goalInput <= 0}
+              >
+                Save Goal
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        {/* Performance Target Modal — visible only to privileged user */}
+        {user?.username === PERFORMANCE_TRACKER_USER && <Modal
           opened={showTargetModal}
           onClose={() => setShowTargetModal(false)}
           title="Set Performance Target"
@@ -481,7 +697,7 @@ const Dashboard = () => {
               </Button>
             </Group>
           </Stack>
-        </Modal>
+        </Modal>}
       </Stack>
     </Container>
   )

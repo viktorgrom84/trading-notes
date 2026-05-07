@@ -28,41 +28,47 @@ export default async function handler(req, res) {
     
     try {
       if (req.method === 'PUT') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType } = req.body;
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, tradeType,
+                optionType, strikePrice, expirationDate, contracts } = req.body;
 
-        // Check if this is a profit-only trade
         const isProfitOnlyTrade = profit !== undefined;
-        
-        if (isProfitOnlyTrade) {
-          // Profit-only trade update - store exact date selected by user (use noon UTC)
-          const utcBuyDate = buyDate + 'T12:00:00.000Z'
+        const isOptionTrade = tradeType === 'option';
+
+        if (isOptionTrade) {
+          const utcBuyDate = buyDate + 'T12:00:00.000Z';
+          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null;
+          const utcExpirationDate = expirationDate + 'T12:00:00.000Z';
+          const result = await client.query(
+            `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3,
+             buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8,
+             trade_type = $9, option_type = $10, strike_price = $11, expiration_date = $12,
+             updated_at = CURRENT_TIMESTAMP
+             WHERE id = $13 AND user_id = $14 RETURNING *`,
+            [symbol, contracts, buyPrice, utcBuyDate, sellPrice || null, utcSellDate, notes, positionType || 'short',
+             'option', optionType, strikePrice, utcExpirationDate, id, userId]
+          );
+          if (result.rows.length === 0) return res.status(404).json({ message: 'Trade not found' });
+          res.json(result.rows[0]);
+        } else if (isProfitOnlyTrade) {
+          const utcBuyDate = buyDate + 'T12:00:00.000Z';
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
              buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
              WHERE id = $9 AND user_id = $10 RETURNING *`,
             [symbol, 1, 0, utcBuyDate, profit, utcBuyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, positionType || 'long', id, userId]
           );
-
-          if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'Trade not found' });
-          }
-
+          if (result.rows.length === 0) return res.status(404).json({ message: 'Trade not found' });
           res.json(result.rows[0]);
         } else {
-          // Regular trade update - store exact dates selected by user (use noon UTC)
-          const utcBuyDate = buyDate + 'T12:00:00.000Z'
-          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null
+          const utcBuyDate = buyDate + 'T12:00:00.000Z';
+          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null;
           const result = await client.query(
             `UPDATE trades SET symbol = $1, shares = $2, buy_price = $3, 
              buy_date = $4, sell_price = $5, sell_date = $6, notes = $7, position_type = $8, updated_at = CURRENT_TIMESTAMP
              WHERE id = $9 AND user_id = $10 RETURNING *`,
             [symbol, shares, buyPrice, utcBuyDate, sellPrice, utcSellDate, notes, positionType || 'long', id, userId]
           );
-
-          if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'Trade not found' });
-          }
-
+          if (result.rows.length === 0) return res.status(404).json({ message: 'Trade not found' });
           res.json(result.rows[0]);
         }
       } else if (req.method === 'DELETE') {

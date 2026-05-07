@@ -56,7 +56,7 @@ const TradingNotes = () => {
   const [loading, setLoading] = useState(true)
   const [opened, { open, close }] = useDisclosure(false)
   const [editingTrade, setEditingTrade] = useState(null)
-  const [isProfitOnlyMode, setIsProfitOnlyMode] = useState(false)
+  const [tradeMode, setTradeMode] = useState('regular') // 'regular' | 'option' | 'profit'
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -72,14 +72,28 @@ const TradingNotes = () => {
       sellDate: '',
       notes: '',
       profit: undefined,
-      positionType: 'long'
+      positionType: 'long',
+      // Option-specific
+      optionType: 'call',
+      strikePrice: 0,
+      expirationDate: '',
+      contracts: 1,
     },
     validate: (values) => {
-      if (isProfitOnlyMode) {
+      if (tradeMode === 'profit') {
         return {
           symbol: (!values.symbol ? 'Symbol is required' : null),
           profit: (values.profit === undefined || values.profit === null || values.profit === '' ? 'Profit/Loss is required' : null),
           buyDate: (!values.buyDate ? 'Trade date is required' : null),
+        }
+      } else if (tradeMode === 'option') {
+        return {
+          symbol: (!values.symbol ? 'Symbol is required' : null),
+          contracts: (values.contracts <= 0 ? 'Contracts must be greater than 0' : null),
+          buyPrice: (values.buyPrice <= 0 ? 'Premium must be greater than 0' : null),
+          strikePrice: (values.strikePrice <= 0 ? 'Strike price is required' : null),
+          buyDate: (!values.buyDate ? 'Open date is required' : null),
+          expirationDate: (!values.expirationDate ? 'Expiration date is required' : null),
         }
       } else {
         return {
@@ -117,8 +131,7 @@ const TradingNotes = () => {
     try {
       let tradeData;
       
-      if (isProfitOnlyMode) {
-        // For profit-only mode, send profit field to backend
+      if (tradeMode === 'profit') {
         tradeData = {
           symbol: values.symbol.toUpperCase(),
           profit: parseFloat(values.profit),
@@ -127,8 +140,22 @@ const TradingNotes = () => {
           positionType: values.positionType || 'long',
           tradeType: 'profit_only'
         }
+      } else if (tradeMode === 'option') {
+        tradeData = {
+          symbol: values.symbol.toUpperCase(),
+          contracts: parseInt(values.contracts),
+          buyPrice: parseFloat(values.buyPrice),
+          sellPrice: values.sellPrice !== '' && values.sellPrice !== undefined ? parseFloat(values.sellPrice) : null,
+          buyDate: values.buyDate,
+          sellDate: values.sellDate || null,
+          notes: values.notes || null,
+          positionType: values.positionType || 'short',
+          tradeType: 'option',
+          optionType: values.optionType,
+          strikePrice: parseFloat(values.strikePrice),
+          expirationDate: values.expirationDate,
+        }
       } else {
-        // Regular mode
         tradeData = {
           symbol: values.symbol.toUpperCase(),
           shares: parseInt(values.shares),
@@ -175,44 +202,65 @@ const TradingNotes = () => {
   const handleEdit = (trade) => {
     setEditingTrade(trade)
     const isProfitOnly = isProfitOnlyTrade(trade)
-    setIsProfitOnlyMode(isProfitOnly)
+    const isOption = isOptionTrade(trade)
+    if (isOption) setTradeMode('option')
+    else if (isProfitOnly) setTradeMode('profit')
+    else setTradeMode('regular')
     
     const formatDateForInput = (date) => {
       if (!date) return ''
-      
       try {
-        let localDate
-        if (date.includes('T')) {
-          localDate = new Date(date)
-        } else {
-          localDate = new Date(date + 'T12:00:00')
-        }
-        
-        if (isNaN(localDate.getTime())) {
-          return ''
-        }
-        
+        const localDate = date.includes('T') ? new Date(date) : new Date(date + 'T12:00:00')
+        if (isNaN(localDate.getTime())) return ''
         const year = localDate.getFullYear()
         const month = String(localDate.getMonth() + 1).padStart(2, '0')
         const day = String(localDate.getDate()).padStart(2, '0')
         return `${year}-${month}-${day}`
-      } catch (error) {
+      } catch {
         return ''
       }
     }
     
-    form.setValues({
-      symbol: trade.symbol,
-      profit: isProfitOnly ? (trade.sell_price || 0) : undefined,
-      buyDate: formatDateForInput(trade.buy_date),
-      notes: isProfitOnly ? cleanNotes(trade.notes) : (trade.notes || ''),
-      positionType: trade.position_type || 'long',
-      // Regular trade fields
-      shares: isProfitOnly ? 0 : trade.shares,
-      buyPrice: isProfitOnly ? 0 : trade.buy_price,
-      sellPrice: isProfitOnly ? '' : (trade.sell_price || ''),
-      sellDate: isProfitOnly ? '' : formatDateForInput(trade.sell_date)
-    })
+    if (isOption) {
+      form.setValues({
+        symbol: trade.symbol,
+        contracts: trade.shares,
+        buyPrice: trade.buy_price,
+        sellPrice: trade.sell_price !== null && trade.sell_price !== undefined ? trade.sell_price : '',
+        buyDate: formatDateForInput(trade.buy_date),
+        sellDate: formatDateForInput(trade.sell_date),
+        notes: trade.notes || '',
+        positionType: trade.position_type || 'short',
+        optionType: trade.option_type || 'call',
+        strikePrice: trade.strike_price || 0,
+        expirationDate: formatDateForInput(trade.expiration_date),
+        shares: 0,
+        profit: undefined,
+      })
+    } else if (isProfitOnly) {
+      form.setValues({
+        symbol: trade.symbol,
+        profit: trade.sell_price || 0,
+        buyDate: formatDateForInput(trade.buy_date),
+        notes: cleanNotes(trade.notes),
+        positionType: trade.position_type || 'long',
+        shares: 0, buyPrice: 0, sellPrice: '', sellDate: '',
+        optionType: 'call', strikePrice: 0, expirationDate: '', contracts: 1,
+      })
+    } else {
+      form.setValues({
+        symbol: trade.symbol,
+        profit: undefined,
+        buyDate: formatDateForInput(trade.buy_date),
+        notes: trade.notes || '',
+        positionType: trade.position_type || 'long',
+        shares: trade.shares,
+        buyPrice: trade.buy_price,
+        sellPrice: trade.sell_price || '',
+        sellDate: formatDateForInput(trade.sell_date),
+        optionType: 'call', strikePrice: 0, expirationDate: '', contracts: 1,
+      })
+    }
     
     open()
   }
@@ -268,28 +316,34 @@ const TradingNotes = () => {
   }
   
   const isProfitOnlyTrade = (trade) => {
-    // Check trade_type field first, then fallback to legacy detection
     if (trade.trade_type === 'profit_only') return true
-    if (trade.trade_type === 'regular') return false
-    
-    // Legacy detection: profit-only trades have shares=1, buy_price=0, and sell_price as profit
+    if (trade.trade_type === 'regular' || trade.trade_type === 'option') return false
     return trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0
   }
+
+  const isOptionTrade = (trade) => trade.trade_type === 'option'
   const isShortTrade = (trade) => trade.position_type === 'short'
   
   const getProfit = (trade) => {
-    if (isProfitOnlyTrade(trade)) {
-      return trade.sell_price // For profit-only trades, sell_price contains the profit
+    if (isProfitOnlyTrade(trade)) return trade.sell_price
+
+    if (isOptionTrade(trade)) {
+      if (trade.sell_price === null || trade.sell_price === undefined || !trade.sell_date) return null
+      const contracts = trade.shares
+      const premium = parseFloat(trade.buy_price)
+      const closePrice = parseFloat(trade.sell_price)
+      // Short option (sold): profit = (premium - buyback) * contracts * 100
+      // Long option (bought): profit = (close - premium) * contracts * 100
+      return isShortTrade(trade)
+        ? (premium - closePrice) * contracts * 100
+        : (closePrice - premium) * contracts * 100
     }
     
     const isShort = isShortTrade(trade)
     const hasRequiredData = isShort 
       ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
       : trade.sell_price && trade.sell_date
-    
     if (!hasRequiredData) return null
-    
-    // Calculate profit: (sell_price - buy_price) * shares
     return (trade.sell_price - trade.buy_price) * trade.shares
   }
 
@@ -312,20 +366,13 @@ const TradingNotes = () => {
   }
 
   const getStatus = (trade) => {
-    // Profit-only trades are always closed since profit is already declared
     if (isProfitOnlyTrade(trade)) return 'closed'
-    
+    if (isOptionTrade(trade)) return trade.sell_date ? 'closed' : 'open'
     const isShort = isShortTrade(trade)
-    
     if (isShort) {
-      // For short trades: closed when we have both entry (sell) and exit (buy) data
-      const hasEntryData = trade.sell_price && trade.sell_date
-      const hasExitData = trade.buy_price && trade.buy_date
-      return (hasEntryData && hasExitData) ? 'closed' : 'open'
-    } else {
-      // For long trades: closed when we have sell price and date
-      return trade.sell_price && trade.sell_date ? 'closed' : 'open'
+      return (trade.sell_price && trade.sell_date && trade.buy_price && trade.buy_date) ? 'closed' : 'open'
     }
+    return trade.sell_price && trade.sell_date ? 'closed' : 'open'
   }
 
   const filteredTrades = (trades || [])
@@ -381,23 +428,33 @@ const TradingNotes = () => {
     const profit = getProfit(trade)
     const status = getStatus(trade)
     const isProfitOnly = isProfitOnlyTrade(trade)
+    const isOption = isOptionTrade(trade)
     const isShort = isShortTrade(trade)
+
+    const optionTooltip = isOption
+      ? `${trade.option_type?.toUpperCase()} • Strike $${parseFloat(trade.strike_price).toFixed(2)} • Exp ${formatDate(trade.expiration_date)}${getDisplayNotes(trade) ? '\n' + getDisplayNotes(trade) : ''}`
+      : getDisplayNotes(trade)
     
     return (
       <Table.Tr key={trade.id}>
         <Table.Td>
           <Group gap="sm">
             <Tooltip
-              label={getDisplayNotes(trade)}
+              label={optionTooltip}
               position="top"
               withArrow
               multiline
               w={300}
-              disabled={!getDisplayNotes(trade)}
+              disabled={!optionTooltip}
             >
-              <Text fw={600} style={{ cursor: getDisplayNotes(trade) ? 'help' : 'default' }}>
-                {trade.symbol}
-              </Text>
+              <div style={{ cursor: optionTooltip ? 'help' : 'default' }}>
+                <Text fw={600}>{trade.symbol}</Text>
+                {isOption && (
+                  <Text size="xs" c="dimmed">
+                    {trade.option_type?.toUpperCase()} ${parseFloat(trade.strike_price || 0).toFixed(0)} · {formatDate(trade.expiration_date)}
+                  </Text>
+                )}
+              </div>
             </Tooltip>
             <Badge 
               color={status === 'open' ? 'blue' : 'gray'}
@@ -409,17 +466,28 @@ const TradingNotes = () => {
           </Group>
         </Table.Td>
         <Table.Td>
-          <Badge 
-            color={isShort ? 'red' : 'green'}
-            variant="light"
-            size="sm"
-            leftSection={isShort ? <IconTrendingDown size={12} /> : <IconTrendingUp size={12} />}
-          >
-            {isShort ? 'Short' : 'Long'}
-          </Badge>
+          {isOption ? (
+            <Badge
+              color={isShort ? 'orange' : 'violet'}
+              variant="light"
+              size="sm"
+              leftSection={isShort ? <IconTrendingDown size={12} /> : <IconTrendingUp size={12} />}
+            >
+              {isShort ? 'Short' : 'Long'} {trade.option_type === 'call' ? 'Call' : 'Put'}
+            </Badge>
+          ) : (
+            <Badge 
+              color={isShort ? 'red' : 'green'}
+              variant="light"
+              size="sm"
+              leftSection={isShort ? <IconTrendingDown size={12} /> : <IconTrendingUp size={12} />}
+            >
+              {isShort ? 'Short' : 'Long'}
+            </Badge>
+          )}
         </Table.Td>
         <Table.Td>
-          {isProfitOnly ? '-' : trade.shares}
+          {isProfitOnly ? '-' : isOption ? `${trade.shares}×` : trade.shares}
         </Table.Td>
         <Table.Td>
           {getEntryPrice(trade)}
@@ -496,6 +564,7 @@ const TradingNotes = () => {
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setEditingTrade(null)
+              setTradeMode('regular')
               form.reset()
               open()
             }}
@@ -544,7 +613,7 @@ const TradingNotes = () => {
                   <Table.Tr>
                     <Table.Th>Symbol</Table.Th>
                     <Table.Th>Type</Table.Th>
-                    <Table.Th>Shares</Table.Th>
+                    <Table.Th>Qty</Table.Th>
                     <Table.Th>Entry Price</Table.Th>
                     <Table.Th>Entry Date</Table.Th>
                     <Table.Th>Exit Price</Table.Th>
@@ -579,6 +648,7 @@ const TradingNotes = () => {
                       leftSection={<IconPlus size={16} />}
                       onClick={() => {
                         setEditingTrade(null)
+                        setTradeMode('regular')
                         form.reset()
                         open()
                       }}
@@ -638,13 +708,15 @@ const TradingNotes = () => {
               {/* Mode Toggle */}
               <Group justify="center" mb="md">
                 <SegmentedControl
-                  value={isProfitOnlyMode ? 'profit' : 'regular'}
+                  value={tradeMode}
                   onChange={(value) => {
-                    setIsProfitOnlyMode(value === 'profit')
+                    setTradeMode(value)
                     form.reset()
+                    if (value === 'option') form.setFieldValue('positionType', 'short')
                   }}
                   data={[
-                    { label: 'Regular Trade', value: 'regular' },
+                    { label: 'Regular', value: 'regular' },
+                    { label: 'Option', value: 'option' },
                     { label: 'Profit Only', value: 'profit' }
                   ]}
                   size="sm"
@@ -652,7 +724,7 @@ const TradingNotes = () => {
                 />
               </Group>
 
-              {isProfitOnlyMode ? (
+              {tradeMode === 'profit' ? (
                 // Profit-only mode fields
                 <Grid>
                   <Grid.Col span={6}>
@@ -690,6 +762,110 @@ const TradingNotes = () => {
                         onChange={(value) => form.setFieldValue('positionType', value)}
                       />
                     </div>
+                  </Grid.Col>
+                </Grid>
+              ) : tradeMode === 'option' ? (
+                // Option mode fields
+                <Grid>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Symbol"
+                      placeholder="e.g., AAPL"
+                      {...form.getInputProps('symbol')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <div>
+                      <Text size="sm" fw={500} mb="xs">Option Type</Text>
+                      <SegmentedControl
+                        data={[
+                          { label: 'Call', value: 'call' },
+                          { label: 'Put', value: 'put' }
+                        ]}
+                        value={form.values.optionType}
+                        onChange={(value) => form.setFieldValue('optionType', value)}
+                        fullWidth
+                      />
+                    </div>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Strike Price"
+                      placeholder="150.00"
+                      min={0}
+                      decimalScale={2}
+                      prefix="$"
+                      {...form.getInputProps('strikePrice')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Expiration Date"
+                      type="date"
+                      {...form.getInputProps('expirationDate')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Contracts"
+                      description="1 contract = 100 shares"
+                      placeholder="1"
+                      min={1}
+                      {...form.getInputProps('contracts')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <div>
+                      <Text size="sm" fw={500} mb="xs">Action</Text>
+                      <SegmentedControl
+                        data={[
+                          { label: 'Sell (Covered Call)', value: 'short' },
+                          { label: 'Buy', value: 'long' }
+                        ]}
+                        value={form.values.positionType}
+                        onChange={(value) => form.setFieldValue('positionType', value)}
+                        fullWidth
+                      />
+                    </div>
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label={form.values.positionType === 'short' ? 'Premium Received (per share)' : 'Premium Paid (per share)'}
+                      placeholder="2.50"
+                      min={0}
+                      decimalScale={2}
+                      prefix="$"
+                      description={
+                        form.values.contracts && form.values.buyPrice
+                          ? `Total: $${(parseFloat(form.values.buyPrice || 0) * parseInt(form.values.contracts || 0) * 100).toFixed(2)}`
+                          : undefined
+                      }
+                      {...form.getInputProps('buyPrice')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Open Date"
+                      type="date"
+                      {...form.getInputProps('buyDate')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Close / Buyback Price (per share)"
+                      placeholder="0.00 if expired worthless"
+                      min={0}
+                      decimalScale={2}
+                      prefix="$"
+                      {...form.getInputProps('sellPrice')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Close Date"
+                      type="date"
+                      {...form.getInputProps('sellDate')}
+                    />
                   </Grid.Col>
                 </Grid>
               ) : (

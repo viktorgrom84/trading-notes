@@ -63,7 +63,7 @@ function App() {
             <Navbar user={user} onLogout={handleLogout} />
             <AppShell.Main>
                   <Routes>
-                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/" element={<Dashboard user={user} />} />
                     <Route path="/trades" element={<TradingNotes />} />
                     <Route path="/statistics" element={<Statistics />} />
                     <Route path="/calendar" element={<Calendar />} />

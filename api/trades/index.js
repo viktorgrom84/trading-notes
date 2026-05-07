@@ -45,47 +45,49 @@ export default async function handler(req, res) {
         );
         res.json(result.rows);
       } else if (req.method === 'POST') {
-        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, position_type, tradeType } = req.body;
+        const { symbol, shares, buyPrice, buyDate, sellPrice, sellDate, notes, profit, positionType, position_type, tradeType,
+                optionType, strikePrice, expirationDate, contracts } = req.body;
         const finalPositionType = positionType || position_type || 'long';
         const finalTradeType = tradeType || (profit !== undefined ? 'profit_only' : 'regular');
 
-
-        // Check if this is a profit-only trade (profit field exists, even if 0)
         const isProfitOnlyTrade = profit !== undefined && profit !== null;
-        
-        if (isProfitOnlyTrade) {
-          // Profit-only trade validation
+        const isOptionTrade = finalTradeType === 'option';
+
+        if (isOptionTrade) {
+          if (!symbol || !contracts || !buyPrice || !buyDate || !optionType || !strikePrice || !expirationDate) {
+            return res.status(400).json({ message: 'Symbol, contracts, premium, open date, option type, strike price, and expiration date are required' });
+          }
+          const utcBuyDate = buyDate + 'T12:00:00.000Z';
+          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null;
+          const utcExpirationDate = expirationDate + 'T12:00:00.000Z';
+          const result = await client.query(
+            `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type, trade_type, option_type, strike_price, expiration_date)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+            [userId, symbol, contracts, buyPrice, utcBuyDate, sellPrice || null, utcSellDate, notes, finalPositionType, 'option', optionType, strikePrice, utcExpirationDate]
+          );
+          res.status(201).json(result.rows[0]);
+        } else if (isProfitOnlyTrade) {
           if (!symbol || (profit === undefined || profit === null) || !buyDate) {
             return res.status(400).json({ message: 'Symbol, profit, and buy date are required for profit-only trades' });
           }
-          
-          // Store the exact date selected by user (use noon UTC to avoid date boundary issues)
-          const utcBuyDate = buyDate + 'T12:00:00.000Z'
-          
-          // For profit-only trades, store profit as sell_price with dummy values
+          const utcBuyDate = buyDate + 'T12:00:00.000Z';
           const result = await client.query(
             `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type, trade_type)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
             [userId, symbol, 1, 0, utcBuyDate, profit, utcBuyDate, notes || `Profit-only trade: ${profit > 0 ? '+' : ''}${profit}`, finalPositionType, finalTradeType]
           );
-          
           res.status(201).json(result.rows[0]);
         } else {
-          // Regular trade validation
           if (!symbol || !shares || !buyPrice || !buyDate) {
             return res.status(400).json({ message: 'Symbol, shares, buy price, and buy date are required' });
           }
-
-          // Store the exact dates selected by user (use noon UTC to avoid date boundary issues)
-          const utcBuyDate = buyDate + 'T12:00:00.000Z'
-          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null
-
+          const utcBuyDate = buyDate + 'T12:00:00.000Z';
+          const utcSellDate = sellDate ? sellDate + 'T12:00:00.000Z' : null;
           const result = await client.query(
             `INSERT INTO trades (user_id, symbol, shares, buy_price, buy_date, sell_price, sell_date, notes, position_type, trade_type)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
             [userId, symbol, shares, buyPrice, utcBuyDate, sellPrice, utcSellDate, notes, finalPositionType, finalTradeType]
           );
-
           res.status(201).json(result.rows[0]);
         }
       } else {

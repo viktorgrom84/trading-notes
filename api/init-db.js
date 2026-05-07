@@ -90,6 +90,38 @@ export default async function handler(req, res) {
         // Trade type column migration failed, continue
       }
 
+      // Add option columns if they don't exist (migration)
+      try {
+        const optionColCheck = await client.query(`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'trades' AND column_name = 'option_type'
+        `);
+        if (optionColCheck.rows.length === 0) {
+          await client.query(`ALTER TABLE trades ADD COLUMN option_type VARCHAR(4) CHECK (option_type IN ('call', 'put'))`);
+          await client.query(`ALTER TABLE trades ADD COLUMN strike_price DECIMAL(10,2)`);
+          await client.query(`ALTER TABLE trades ADD COLUMN expiration_date DATE`);
+        }
+      } catch (error) {
+        // Option columns migration failed, continue
+      }
+
+      // Update trade_type CHECK constraint to include 'option'
+      try {
+        const constraintResult = await client.query(`
+          SELECT conname FROM pg_constraint
+          WHERE conrelid = 'trades'::regclass AND contype = 'c' AND conname LIKE '%trade_type%'
+        `);
+        if (constraintResult.rows.length > 0) {
+          await client.query(`ALTER TABLE trades DROP CONSTRAINT IF EXISTS ${constraintResult.rows[0].conname}`);
+        }
+        await client.query(`
+          ALTER TABLE trades ADD CONSTRAINT trades_trade_type_check
+          CHECK (trade_type IN ('regular', 'profit_only', 'option'))
+        `);
+      } catch (error) {
+        // CHECK constraint update failed, continue
+      }
+
       // Create AI analysis costs table
       await client.query(`
         CREATE TABLE IF NOT EXISTS ai_analysis_costs (

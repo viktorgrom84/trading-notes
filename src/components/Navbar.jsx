@@ -43,7 +43,7 @@ const Navbar = ({ user, onLogout }) => {
     { path: '/', label: 'Dashboard', icon: IconHome },
     { path: '/trades', label: 'Trading Notes', icon: IconBook },
     { path: '/statistics', label: 'Statistics', icon: IconChartBar },
-    { path: '/ai-analysis', label: 'AI Analysis', icon: IconBrain, adminOnly: true },
+    { path: '/ai-analysis', label: 'AI Analysis', icon: IconBrain },
     { path: '/tradingview-mcp', label: 'Tradingview mcp', icon: IconChartCandle },
     { path: '/calendar', label: 'Calendar', icon: IconCalendar },
     { path: '/admin', label: 'Admin', icon: IconShield, adminOnly: true }
