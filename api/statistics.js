@@ -82,8 +82,15 @@ export default async function handler(req, res) {
       );
 
       const trades = result.rows;
-      const completedTrades = trades.filter(trade => trade.sell_price && trade.sell_date);
-      const openTrades = trades.filter(trade => !trade.sell_price || !trade.sell_date);
+      const completedTrades = trades.filter(trade => {
+        if (trade.trade_type === 'option') return !!trade.buy_price; // premium collected at open
+        if (trade.trade_type === 'profit_only') return true;
+        return trade.sell_price && trade.sell_date;
+      });
+      const openTrades = trades.filter(trade => {
+        if (trade.trade_type === 'option') return false;
+        return !trade.sell_price || !trade.sell_date;
+      });
 
       let totalProfit = 0;
       let totalInvested = 0;
@@ -108,7 +115,9 @@ export default async function handler(req, res) {
         totalInvested += buyValue;
         totalProfit += profit;
 
-        const exitDate = parseDateYearMonth(trade.sell_date);
+        // Options: count premium on buy_date; others: count on sell_date
+        const dateForPerf = trade.trade_type === 'option' ? trade.buy_date : trade.sell_date;
+        const exitDate = parseDateYearMonth(dateForPerf);
         if (exitDate) {
           if (exitDate.year === nowYear && exitDate.month === nowMonth) {
             performanceThisMonth += profit;
@@ -117,7 +126,7 @@ export default async function handler(req, res) {
             performanceThisYear += profit;
           }
         }
-        
+
         if (profit > 0) {
           winningTrades++;
         } else if (profit < 0) {
