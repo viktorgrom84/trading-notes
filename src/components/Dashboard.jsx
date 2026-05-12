@@ -533,11 +533,11 @@ const Dashboard = ({ user }) => {
                       <Group justify="space-between">
                         <Group>
                           <Text fw={600} size="lg">{trade.symbol}</Text>
-                          <Badge 
-                            color={trade.sell_price && trade.sell_date ? 'gray' : 'blue'}
+                          <Badge
+                            color={trade.trade_type === 'option' ? 'orange' : trade.sell_price && trade.sell_date ? 'gray' : 'blue'}
                             variant="light"
                           >
-                            {trade.sell_price && trade.sell_date ? 'Closed' : 'Open'}
+                            {trade.trade_type === 'option' ? 'Option' : trade.sell_price && trade.sell_date ? 'Closed' : 'Open'}
                           </Badge>
                         </Group>
                         <Group>
@@ -558,6 +558,8 @@ const Dashboard = ({ user }) => {
                       <Text size="sm" c="dimmed" mt="xs">
                         {trade.isProfitOnlyTrade ? (
                           `Profit trade • ${formatDate(trade.buy_date)}`
+                        ) : trade.trade_type === 'option' ? (
+                          `${trade.shares} contract${trade.shares !== 1 ? 's' : ''} • ${trade.option_type === 'call' ? 'Covered Call' : 'Put'} • Strike $${parseFloat(trade.strike_price || 0).toFixed(0)} • ${formatDate(trade.buy_date)}`
                         ) : (
                           `${trade.shares} shares @ ${formatCurrency(trade.buy_price)} • ${formatDate(trade.buy_date)}`
                         )}
