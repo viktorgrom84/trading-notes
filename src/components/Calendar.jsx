@@ -134,13 +134,15 @@ const Calendar = () => {
 
   // Calendar day renderer
   const renderDay = (date) => {
-    // Convert the date to a proper Date object
     const dateObj = new Date(date)
     const dailyPnL = getDailyPnL(dateObj)
     const hasTrades = dailyPnL !== 0
 
     return (
-      <Box style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <Box
+        onClick={() => setSelectedDate(dateObj)}
+        style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+      >
         <Text size="sm" ta="center" fw={600} c="dark" mb={hasTrades ? 4 : 0}>
           {dateObj.getDate()}
         </Text>
