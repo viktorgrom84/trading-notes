@@ -66,26 +66,21 @@ const Calendar = () => {
 
   const calculateProfit = (trade) => {
     if (trade.trade_type === 'profit_only') {
-      return trade.sell_price
+      return parseFloat(trade.sell_price)
     }
 
     if (trade.trade_type === 'option') {
       const isShort = trade.position_type === 'short'
       const premium = parseFloat(trade.buy_price)
-      const closePrice = parseFloat(trade.sell_price)
-      return isShort
-        ? (premium - closePrice) * trade.shares * 100
-        : (closePrice - premium) * trade.shares * 100
+      // buy_price is the total premium collected/paid
+      return isShort ? premium : -premium
     }
-    
+
     const isShort = trade.position_type === 'short'
-    const hasRequiredData = isShort 
+    const hasRequiredData = isShort
       ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
       : trade.sell_price && trade.sell_date
-    
     if (!hasRequiredData) return null
-    
-    // Calculate profit: (sell_price - buy_price) * shares
     return (trade.sell_price - trade.buy_price) * trade.shares
   }
 
@@ -111,8 +106,17 @@ const Calendar = () => {
     })
 
     return dayTrades.reduce((total, trade) => {
-      // Only count profit/loss for exit trades (when we actually close the position)
-      const isExitTrade = trade.sell_date && getLocalDateString(trade.sell_date) === localDateString
+      const isOption = trade.trade_type === 'option'
+      const buyDate = trade.buy_date ? getLocalDateString(trade.buy_date) : null
+      const sellDate = trade.sell_date ? getLocalDateString(trade.sell_date) : null
+
+      // Options: count premium on the open (buy) date
+      if (isOption && buyDate === localDateString) {
+        const profit = calculateProfit(trade)
+        return total + (profit || 0)
+      }
+      // All other trades: count P&L on exit (sell) date
+      const isExitTrade = sellDate === localDateString
       if (isExitTrade) {
         const profit = calculateProfit(trade)
         return total + (profit || 0)
@@ -136,7 +140,7 @@ const Calendar = () => {
     const hasTrades = dailyPnL !== 0
 
     return (
-      <Box style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <Box style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
         <Text size="sm" ta="center" fw={600} c="dark" mb={hasTrades ? 4 : 0}>
           {dateObj.getDate()}
         </Text>
