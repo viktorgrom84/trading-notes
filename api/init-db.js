@@ -105,6 +105,19 @@ export default async function handler(req, res) {
         // Option columns migration failed, continue
       }
 
+      // Add avg_price column for option trades if it doesn't exist
+      try {
+        const avgPriceCheck = await client.query(`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'trades' AND column_name = 'avg_price'
+        `);
+        if (avgPriceCheck.rows.length === 0) {
+          await client.query(`ALTER TABLE trades ADD COLUMN avg_price DECIMAL(10,2)`);
+        }
+      } catch (error) {
+        // avg_price migration failed, continue
+      }
+
       // Update trade_type CHECK constraint to include 'option'
       try {
         const constraintResult = await client.query(`

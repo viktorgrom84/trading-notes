@@ -78,6 +78,7 @@ const TradingNotes = () => {
       strikePrice: 0,
       expirationDate: '',
       contracts: 1,
+      avgPrice: '',
     },
     validate: (values) => {
       if (tradeMode === 'profit') {
@@ -154,6 +155,7 @@ const TradingNotes = () => {
           optionType: values.optionType,
           strikePrice: parseFloat(values.strikePrice),
           expirationDate: values.expirationDate,
+          avgPrice: values.avgPrice !== '' && values.avgPrice !== undefined ? parseFloat(values.avgPrice) : null,
         }
       } else {
         tradeData = {
@@ -234,6 +236,7 @@ const TradingNotes = () => {
         optionType: trade.option_type || 'call',
         strikePrice: trade.strike_price || 0,
         expirationDate: formatDateForInput(trade.expiration_date),
+        avgPrice: trade.avg_price !== null && trade.avg_price !== undefined ? trade.avg_price : '',
         shares: 0,
         profit: undefined,
       })
@@ -432,7 +435,7 @@ const TradingNotes = () => {
     const isShort = isShortTrade(trade)
 
     const optionTooltip = isOption
-      ? `${trade.option_type?.toUpperCase()} • Strike $${parseFloat(trade.strike_price).toFixed(2)} • Exp ${formatDate(trade.expiration_date)}${getDisplayNotes(trade) ? '\n' + getDisplayNotes(trade) : ''}`
+      ? `${trade.option_type?.toUpperCase()} • Strike $${parseFloat(trade.strike_price).toFixed(2)}${trade.avg_price ? ` • Avg $${parseFloat(trade.avg_price).toFixed(2)}` : ''} • Exp ${formatDate(trade.expiration_date)}${getDisplayNotes(trade) ? '\n' + getDisplayNotes(trade) : ''}`
       : getDisplayNotes(trade)
     
     return (
@@ -451,7 +454,7 @@ const TradingNotes = () => {
                 <Text fw={600}>{trade.symbol}</Text>
                 {isOption && (
                   <Text size="xs" c="dimmed">
-                    {trade.option_type?.toUpperCase()} ${parseFloat(trade.strike_price || 0).toFixed(0)} · {formatDate(trade.expiration_date)}
+                    {trade.option_type?.toUpperCase()} ${parseFloat(trade.strike_price || 0).toFixed(0)} · {formatDate(trade.expiration_date)}{trade.avg_price ? ` · Avg $${parseFloat(trade.avg_price).toFixed(2)}` : ''}
                   </Text>
                 )}
               </div>
@@ -799,6 +802,16 @@ const TradingNotes = () => {
                     />
                   </Grid.Col>
                   <Grid.Col span={6}>
+                    <NumberInput
+                      label="Avg Stock Price"
+                      placeholder="148.50"
+                      min={0}
+                      decimalScale={2}
+                      prefix="$"
+                      {...form.getInputProps('avgPrice')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
                     <TextInput
                       label="Expiration Date"
                       type="date"
@@ -808,7 +821,6 @@ const TradingNotes = () => {
                   <Grid.Col span={6}>
                     <NumberInput
                       label="Contracts"
-                      description="1 contract = 100 shares"
                       placeholder="1"
                       min={1}
                       {...form.getInputProps('contracts')}
@@ -835,11 +847,6 @@ const TradingNotes = () => {
                       min={0}
                       decimalScale={2}
                       prefix="$"
-                      description={
-                        form.values.contracts && form.values.buyPrice
-                          ? `Total: $${(parseFloat(form.values.buyPrice || 0) * parseInt(form.values.contracts || 0) * 100).toFixed(2)}`
-                          : undefined
-                      }
                       {...form.getInputProps('buyPrice')}
                     />
                   </Grid.Col>
@@ -853,7 +860,7 @@ const TradingNotes = () => {
                   <Grid.Col span={6}>
                     <NumberInput
                       label="Close / Buyback Price (per share)"
-                      placeholder="0.00 if expired worthless"
+                      placeholder="Leave blank — fill in when position closes"
                       min={0}
                       decimalScale={2}
                       prefix="$"
