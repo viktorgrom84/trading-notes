@@ -90,10 +90,8 @@ const Statistics = () => {
     if (trade.trade_type === 'option') {
       const isShort = trade.position_type === 'short'
       const premium = parseFloat(trade.buy_price)
-      const closePrice = parseFloat(trade.sell_price)
-      return isShort
-        ? (premium - closePrice) * trade.shares * 100
-        : (closePrice - premium) * trade.shares * 100
+      // buy_price is the total premium — that is the P&L
+      return isShort ? premium : -premium
     }
 
     return (trade.sell_price - trade.buy_price) * trade.shares
@@ -104,7 +102,7 @@ const Statistics = () => {
       const isProfitOnly = trade.trade_type === 'profit_only' || 
         (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
       if (isProfitOnly) return trade.sell_price
-      if (trade.trade_type === 'option') return trade.sell_price !== null && trade.sell_price !== undefined && trade.sell_date
+      if (trade.trade_type === 'option') return true // premium is collected at open
       const isShort = trade.position_type === 'short'
       if (isShort) return trade.sell_price && trade.sell_date && trade.buy_price && trade.buy_date
       return trade.sell_price && trade.sell_date

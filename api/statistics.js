@@ -23,6 +23,16 @@ function tradeProfit(trade) {
   if (isProfitOnlyTrade) {
     return Number(trade.sell_price);
   }
+
+  if (trade.trade_type === 'option') {
+    // buy_price = total premium received/paid, sell_price = total close/buyback cost
+    const premium = Number(trade.buy_price);
+    const closePrice = Number(trade.sell_price);
+    return trade.position_type === 'short'
+      ? premium - closePrice
+      : closePrice - premium;
+  }
+
   const buyValue = Number(trade.buy_price) * Number(trade.shares);
   const sellValue = Number(trade.sell_price) * Number(trade.shares);
   return sellValue - buyValue;

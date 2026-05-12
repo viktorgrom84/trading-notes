@@ -188,13 +188,10 @@ const Dashboard = ({ user }) => {
     if (trade.trade_type === 'profit_only') return Number(trade.sell_price)
 
     if (trade.trade_type === 'option') {
-      if (trade.sell_price === null || trade.sell_price === undefined || !trade.sell_date) return null
       const isShort = trade.position_type === 'short'
       const premium = parseFloat(trade.buy_price)
-      const closePrice = parseFloat(trade.sell_price)
-      return isShort
-        ? (premium - closePrice) * trade.shares * 100
-        : (closePrice - premium) * trade.shares * 100
+      // buy_price is the total premium collected/paid — that is the P&L
+      return isShort ? premium : -premium
     }
 
     const isShort = trade.position_type === 'short'
@@ -214,11 +211,14 @@ const Dashboard = ({ user }) => {
     let year = 0
 
     allTrades.forEach(trade => {
-      if (!trade.sell_date) return
+      const isOption = trade.trade_type === 'option'
+      // Options use buy_date (when premium was collected); other trades use sell_date (when closed)
+      const dateStr = isOption ? trade.buy_date : trade.sell_date
+      if (!dateStr) return
       const profit = calculateTradeProfit(trade)
       if (profit === null) return
 
-      const [y, m] = getLocalDateString(trade.sell_date).split('-').map(Number)
+      const [y, m] = getLocalDateString(dateStr).split('-').map(Number)
       if (y === currentYear) {
         year += profit
         if (m - 1 === currentMonth) month += profit
@@ -251,29 +251,13 @@ const Dashboard = ({ user }) => {
 
   const processedRecentTrades = useMemo(() => {
     return recentTrades.map((trade) => {
-      // Check if this is a profit-only trade
-      const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 && 
-                               trade.buy_date === trade.sell_date && 
+      const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 &&
+                               trade.buy_date === trade.sell_date &&
                                trade.notes && trade.notes.includes('Profit-only trade');
-      
-      let profit;
-      if (trade.sell_price && trade.sell_date) {
-        if (isProfitOnlyTrade) {
-          profit = trade.sell_price; // For profit-only trades, sell_price contains the profit
-        } else {
-          profit = (trade.sell_price - trade.buy_price) * trade.shares;
-        }
-      } else {
-        profit = null;
-      }
-      
-      return {
-        ...trade,
-        isProfitOnlyTrade,
-        profit
-      }
+      const profit = calculateTradeProfit(trade)
+      return { ...trade, isProfitOnlyTrade, profit }
     })
-  }, [recentTrades])
+  }, [recentTrades, calculateTradeProfit])
 
   if (loading) {
     return (

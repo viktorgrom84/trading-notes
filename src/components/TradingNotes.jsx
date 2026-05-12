@@ -146,9 +146,9 @@ const TradingNotes = () => {
           symbol: values.symbol.toUpperCase(),
           contracts: parseInt(values.contracts),
           buyPrice: parseFloat(values.buyPrice),
-          sellPrice: values.sellPrice !== '' && values.sellPrice !== undefined ? parseFloat(values.sellPrice) : null,
+          sellPrice: null,
           buyDate: values.buyDate,
-          sellDate: values.sellDate || null,
+          sellDate: null,
           notes: values.notes || null,
           positionType: values.positionType || 'short',
           tradeType: 'option',
@@ -228,9 +228,9 @@ const TradingNotes = () => {
         symbol: trade.symbol,
         contracts: trade.shares,
         buyPrice: trade.buy_price,
-        sellPrice: trade.sell_price !== null && trade.sell_price !== undefined ? trade.sell_price : '',
+        sellPrice: '',
         buyDate: formatDateForInput(trade.buy_date),
-        sellDate: formatDateForInput(trade.sell_date),
+        sellDate: '',
         notes: trade.notes || '',
         positionType: trade.position_type || 'short',
         optionType: trade.option_type || 'call',
@@ -332,14 +332,12 @@ const TradingNotes = () => {
 
     if (isOptionTrade(trade)) {
       if (trade.sell_price === null || trade.sell_price === undefined || !trade.sell_date) return null
-      const contracts = trade.shares
       const premium = parseFloat(trade.buy_price)
       const closePrice = parseFloat(trade.sell_price)
-      // Short option (sold): profit = (premium - buyback) * contracts * 100
-      // Long option (bought): profit = (close - premium) * contracts * 100
+      // buy_price and sell_price are already total dollar amounts
       return isShortTrade(trade)
-        ? (premium - closePrice) * contracts * 100
-        : (closePrice - premium) * contracts * 100
+        ? premium - closePrice
+        : closePrice - premium
     }
     
     const isShort = isShortTrade(trade)
@@ -407,21 +405,25 @@ const TradingNotes = () => {
   // Helper functions for table display
   const getEntryPrice = (trade) => {
     if (isProfitOnlyTrade(trade)) return '-'
+    if (isOptionTrade(trade)) return formatCurrency(trade.buy_price)
     return isShortTrade(trade) ? formatCurrency(trade.sell_price) : formatCurrency(trade.buy_price)
   }
   
   const getEntryDate = (trade) => {
+    if (isOptionTrade(trade)) return formatDate(trade.buy_date)
     return isShortTrade(trade) ? formatDate(trade.sell_date) : formatDate(trade.buy_date)
   }
   
   const getExitPrice = (trade) => {
     if (isProfitOnlyTrade(trade)) return '-'
+    if (isOptionTrade(trade)) return trade.sell_price ? formatCurrency(trade.sell_price) : '-'
     return isShortTrade(trade) 
       ? (trade.buy_price ? formatCurrency(trade.buy_price) : '-')
       : (trade.sell_price ? formatCurrency(trade.sell_price) : '-')
   }
   
   const getExitDate = (trade) => {
+    if (isOptionTrade(trade)) return trade.sell_date ? formatDate(trade.sell_date) : '-'
     return isShortTrade(trade) 
       ? (trade.buy_date ? formatDate(trade.buy_date) : '-')
       : (trade.sell_date ? formatDate(trade.sell_date) : '-')
@@ -459,13 +461,9 @@ const TradingNotes = () => {
                 )}
               </div>
             </Tooltip>
-            <Badge 
-              color={status === 'open' ? 'blue' : 'gray'}
-              variant="light"
-              size="sm"
-            >
-              {status === 'open' ? 'Open' : 'Closed'}
-            </Badge>
+            {status === 'closed' && (
+              <Badge color="gray" variant="light" size="sm">Closed</Badge>
+            )}
           </Group>
         </Table.Td>
         <Table.Td>
@@ -476,7 +474,13 @@ const TradingNotes = () => {
               size="sm"
               leftSection={isShort ? <IconTrendingDown size={12} /> : <IconTrendingUp size={12} />}
             >
-              {isShort ? 'Short' : 'Long'} {trade.option_type === 'call' ? 'Call' : 'Put'}
+              {isShort && trade.option_type === 'call'
+                ? 'Covered Call'
+                : isShort && trade.option_type === 'put'
+                  ? 'Short Put'
+                  : trade.option_type === 'call'
+                    ? 'Long Call'
+                    : 'Long Put'}
             </Badge>
           ) : (
             <Badge 
@@ -490,7 +494,7 @@ const TradingNotes = () => {
           )}
         </Table.Td>
         <Table.Td>
-          {isProfitOnly ? '-' : isOption ? `${trade.shares}×` : trade.shares}
+          {isProfitOnly ? '-' : isOption ? `${trade.shares}` : trade.shares}
         </Table.Td>
         <Table.Td>
           {getEntryPrice(trade)}
@@ -512,6 +516,15 @@ const TradingNotes = () => {
               </ActionIcon>
               <Text fw={500} c={getProfitColor(profit)}>
                 {formatCurrency(profit)}
+              </Text>
+            </Group>
+          ) : isOption && status === 'open' ? (
+            <Group gap="xs">
+              <ActionIcon size="sm" color={isShort ? 'green' : 'red'} variant="light">
+                {isShort ? <IconTrendingUp size={16} /> : <IconTrendingDown size={16} />}
+              </ActionIcon>
+              <Text fw={500} c={isShort ? 'green' : 'red'} size="sm">
+                {formatCurrency(parseFloat(trade.buy_price))}
               </Text>
             </Group>
           ) : (
@@ -617,10 +630,10 @@ const TradingNotes = () => {
                     <Table.Th>Symbol</Table.Th>
                     <Table.Th>Type</Table.Th>
                     <Table.Th>Qty</Table.Th>
-                    <Table.Th>Entry Price</Table.Th>
-                    <Table.Th>Entry Date</Table.Th>
-                    <Table.Th>Exit Price</Table.Th>
-                    <Table.Th>Exit Date</Table.Th>
+                    <Table.Th>Premium / Entry</Table.Th>
+                    <Table.Th>Open Date</Table.Th>
+                    <Table.Th>Close / Exit</Table.Th>
+                    <Table.Th>Close Date</Table.Th>
                     <Table.Th>Profit/Loss</Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
@@ -831,7 +844,7 @@ const TradingNotes = () => {
                       <Text size="sm" fw={500} mb="xs">Action</Text>
                       <SegmentedControl
                         data={[
-                          { label: 'Sell (Covered Call)', value: 'short' },
+                          { label: 'Covered Call', value: 'short' },
                           { label: 'Buy', value: 'long' }
                         ]}
                         value={form.values.positionType}
@@ -842,7 +855,7 @@ const TradingNotes = () => {
                   </Grid.Col>
                   <Grid.Col span={6}>
                     <NumberInput
-                      label={form.values.positionType === 'short' ? 'Premium Received (per share)' : 'Premium Paid (per share)'}
+                      label={form.values.positionType === 'short' ? 'Premium Received' : 'Premium Paid'}
                       placeholder="2.50"
                       min={0}
                       decimalScale={2}
@@ -855,23 +868,6 @@ const TradingNotes = () => {
                       label="Open Date"
                       type="date"
                       {...form.getInputProps('buyDate')}
-                    />
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <NumberInput
-                      label="Close / Buyback Price (per share)"
-                      placeholder="Leave blank — fill in when position closes"
-                      min={0}
-                      decimalScale={2}
-                      prefix="$"
-                      {...form.getInputProps('sellPrice')}
-                    />
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <TextInput
-                      label="Close Date"
-                      type="date"
-                      {...form.getInputProps('sellDate')}
                     />
                   </Grid.Col>
                 </Grid>
