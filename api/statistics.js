@@ -25,12 +25,15 @@ function tradeProfit(trade) {
   }
 
   if (trade.trade_type === 'option') {
-    // buy_price = total premium received/paid, sell_price = total close/buyback cost
     const premium = Number(trade.buy_price);
-    const closePrice = Number(trade.sell_price);
-    return trade.position_type === 'short'
-      ? premium - closePrice
-      : closePrice - premium;
+    if (trade.sell_price != null && trade.sell_date) {
+      const closePrice = Number(trade.sell_price);
+      return trade.position_type === 'short'
+        ? premium - closePrice
+        : closePrice - premium;
+    }
+    // Open option: premium collected (short) or paid (long)
+    return trade.position_type === 'short' ? premium : -premium;
   }
 
   const buyValue = Number(trade.buy_price) * Number(trade.shares);
@@ -83,8 +86,8 @@ export default async function handler(req, res) {
 
       const trades = result.rows;
       const completedTrades = trades.filter(trade => {
-        if (trade.trade_type === 'option') return !!trade.buy_price; // premium collected at open
         if (trade.trade_type === 'profit_only') return true;
+        if (trade.trade_type === 'option') return trade.sell_date || trade.position_type === 'short';
         return trade.sell_price && trade.sell_date;
       });
       const openTrades = trades.filter(trade => {

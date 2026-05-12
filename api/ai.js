@@ -110,29 +110,57 @@ async function handleAnalyze(req, res, decoded) {
   const tradesSummary = trades.map(trade => {
     const isProfitOnly = trade.trade_type === 'profit_only' || 
       (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
-    
+    const isOption = trade.trade_type === 'option'
     const isShort = trade.position_type === 'short'
     
     let profit = null
     if (isProfitOnly) {
-      profit = trade.sell_price // For profit-only trades, sell_price contains the profit
+      profit = trade.sell_price
+    } else if (isOption) {
+      const premium = parseFloat(trade.buy_price)
+      if (trade.sell_price != null && trade.sell_date) {
+        const closePrice = parseFloat(trade.sell_price)
+        profit = isShort ? premium - closePrice : closePrice - premium
+      } else {
+        // Open option — unrealized
+        profit = null
+      }
     } else if (trade.sell_price && trade.sell_date) {
-      // Calculate profit for regular trades
       profit = (trade.sell_price - trade.buy_price) * trade.shares
+    }
+
+    let entryPrice, exitPrice, entryDate, exitDate
+    if (isOption) {
+      // For options, buy_date/buy_price = open (premium received/paid)
+      entryPrice = trade.buy_price
+      exitPrice = trade.sell_price || null
+      entryDate = trade.buy_date
+      exitDate = trade.sell_date || null
+    } else if (isShort) {
+      entryPrice = trade.sell_price
+      exitPrice = trade.buy_price
+      entryDate = trade.sell_date
+      exitDate = trade.buy_date
+    } else {
+      entryPrice = trade.buy_price
+      exitPrice = trade.sell_price
+      entryDate = trade.buy_date
+      exitDate = trade.sell_date
     }
 
     return {
       symbol: trade.symbol,
       positionType: trade.position_type || 'long',
-      shares: isProfitOnly ? null : trade.shares,
-      entryPrice: isShort ? trade.sell_price : trade.buy_price,
-      exitPrice: isShort ? trade.buy_price : trade.sell_price,
-      entryDate: isShort ? trade.sell_date : trade.buy_date,
-      exitDate: isShort ? trade.buy_date : trade.sell_date,
-      profit: profit,
+      tradeType: trade.trade_type || 'regular',
+      shares: isProfitOnly ? null : (isOption ? trade.shares + ' contracts' : trade.shares),
+      entryPrice,
+      exitPrice,
+      entryDate,
+      exitDate,
+      profit,
       notes: trade.notes || '',
-      isProfitOnly: isProfitOnly,
-      isShort: isShort
+      isProfitOnly,
+      isShort
     }
   })
 
@@ -230,12 +258,6 @@ Keep the analysis concise but actionable (max 500 words).`
 
   // Store cost data and analysis results in database
   try {
-    const { Pool } = await import('pg')
-    const pool = new Pool({
-      connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
-      ssl: { rejectUnauthorized: false }
-    })
-    
     const client = await pool.connect()
     try {
       // Store cost data
@@ -299,13 +321,6 @@ async function handleCosts(req, res, decoded) {
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
-  // Fetch real cost data from database
-  const { Pool } = await import('pg')
-  const pool = new Pool({
-    connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
-    ssl: { rejectUnauthorized: false }
-  })
-  
   const client = await pool.connect()
   try {
     // Get current month data
@@ -382,13 +397,6 @@ async function handleHistory(req, res, decoded) {
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
-  // Fetch analysis history from database
-  const { Pool } = await import('pg')
-  const pool = new Pool({
-    connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
-    ssl: { rejectUnauthorized: false }
-  })
-  
   const client = await pool.connect()
   try {
     const query = await client.query(`
@@ -432,13 +440,6 @@ async function handleDelete(req, res, decoded) {
     return res.status(400).json({ message: 'Analysis ID is required' })
   }
 
-  // Delete analysis from database
-  const { Pool } = await import('pg')
-  const pool = new Pool({
-    connectionString: process.env.viktor_POSTGRES_URL || process.env.POSTGRES_URL,
-    ssl: { rejectUnauthorized: false }
-  })
-  
   const client = await pool.connect()
   try {
     // Delete from both tables

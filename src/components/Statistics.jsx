@@ -90,7 +90,11 @@ const Statistics = () => {
     if (trade.trade_type === 'option') {
       const isShort = trade.position_type === 'short'
       const premium = parseFloat(trade.buy_price)
-      // buy_price is the total premium — that is the P&L
+      if (trade.sell_price !== null && trade.sell_price !== undefined && trade.sell_date) {
+        const closePrice = parseFloat(trade.sell_price)
+        return isShort ? premium - closePrice : closePrice - premium
+      }
+      // Open option: premium collected (short) or paid (long)
       return isShort ? premium : -premium
     }
 
@@ -102,7 +106,7 @@ const Statistics = () => {
       const isProfitOnly = trade.trade_type === 'profit_only' || 
         (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
       if (isProfitOnly) return trade.sell_price
-      if (trade.trade_type === 'option') return true // premium is collected at open
+      if (trade.trade_type === 'option') return trade.sell_date || trade.position_type === 'short'
       const isShort = trade.position_type === 'short'
       if (isShort) return trade.sell_price && trade.sell_date && trade.buy_price && trade.buy_date
       return trade.sell_price && trade.sell_date
@@ -158,14 +162,18 @@ const Statistics = () => {
 
   const getChartData = () => {
     const completedTrades = getCompletedTrades()
-    const sortedTrades = completedTrades.sort((a, b) => new Date(a.buy_date) - new Date(b.buy_date))
+    const getExitDate = (trade) => {
+      if (trade.trade_type === 'option' || trade.trade_type === 'profit_only') return trade.buy_date
+      return trade.sell_date || trade.buy_date
+    }
+    const sortedTrades = [...completedTrades].sort((a, b) => new Date(getExitDate(a)) - new Date(getExitDate(b)))
     
     let cumulativeProfit = 0
     return sortedTrades.map(trade => {
       const profit = calcTradeProfit(trade)
       cumulativeProfit += profit
       return {
-        date: new Date(trade.buy_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        date: new Date(getExitDate(trade)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         profit: profit,
         cumulativeProfit: cumulativeProfit,
         symbol: trade.symbol
@@ -304,7 +312,7 @@ const Statistics = () => {
           />
           <StatCard
             title="Win Rate %"
-            value={`${stats.winRate.toFixed(1)}`}
+            value={`${stats.winRate.toFixed(1)}%`}
             icon={<IconTrendingUp size={24} />}
             color={Number(stats.winRate) >= 65 ? 'green' : 'red'} // Updated threshold
           />

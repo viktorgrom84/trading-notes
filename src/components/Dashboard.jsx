@@ -190,7 +190,11 @@ const Dashboard = ({ user }) => {
     if (trade.trade_type === 'option') {
       const isShort = trade.position_type === 'short'
       const premium = parseFloat(trade.buy_price)
-      // buy_price is the total premium collected/paid — that is the P&L
+      if (trade.sell_price != null && trade.sell_date) {
+        const closePrice = parseFloat(trade.sell_price)
+        return isShort ? premium - closePrice : closePrice - premium
+      }
+      // Open option: premium collected (short) or paid (long)
       return isShort ? premium : -premium
     }
 
@@ -298,7 +302,7 @@ const Dashboard = ({ user }) => {
             <Button
               variant="white"
               size="sm"
-              onClick={() => setShowTargetModal(true)}
+              onClick={() => { setCurrentPerformance(performanceTarget); setShowTargetModal(true) }}
             >
               Set Target
             </Button>
@@ -372,7 +376,7 @@ const Dashboard = ({ user }) => {
           />
           <StatCard
             title="Win Rate %"
-            value={`${stats.winRate.toFixed(1)}`}
+            value={`${stats.winRate.toFixed(1)}%`}
             icon={<IconTrendingUp size={24} />}
             color={Number(stats.winRate) >= 65 ? 'green' : 'red'}
           />
@@ -654,8 +658,8 @@ const Dashboard = ({ user }) => {
             <NumberInput
               label="Performance Target"
               placeholder="Enter your target amount"
-              value={performanceTarget}
-              onChange={(value) => setCurrentPerformance(value || 0)}
+              value={currentPerformance}
+              onChange={(value) => setCurrentPerformance(value ?? 0)}
               prefix="$"
               thousandSeparator=","
               decimalScale={2}
@@ -663,7 +667,7 @@ const Dashboard = ({ user }) => {
             />
             
             <Text size="sm" c="dimmed">
-              Current calculation: {formatCurrency(performanceTarget)} + {formatCurrency(stats.totalProfit)} = {formatCurrency(performanceTarget + stats.totalProfit)}
+              Current calculation: {formatCurrency(currentPerformance)} + {formatCurrency(stats.totalProfit)} = {formatCurrency(currentPerformance + stats.totalProfit)}
             </Text>
             
             <Group justify="flex-end" gap="sm">
