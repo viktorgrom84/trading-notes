@@ -328,12 +328,18 @@ const Calendar = () => {
                               {trade.symbol}
                             </Text>
                           </Group>
-                          <Badge 
-                            color={trade.position_type === 'short' ? 'red' : 'blue'}
+                          <Badge
+                            color={trade.trade_type === 'option'
+                              ? (trade.position_type === 'short' ? 'orange' : 'grape')
+                              : (trade.position_type === 'short' ? 'red' : 'blue')}
                             size="sm"
                             variant="light"
                           >
-                            {trade.position_type === 'short' ? 'Short' : 'Long'}
+                            {trade.trade_type === 'option'
+                              ? (trade.position_type === 'short'
+                                  ? (trade.option_type === 'call' ? 'Covered Call' : 'Put Sell')
+                                  : (trade.option_type === 'call' ? 'Call Buy' : 'Put Buy'))
+                              : (trade.position_type === 'short' ? 'Short' : 'Long')}
                           </Badge>
                         </Group>
                         {trade.notes && (
