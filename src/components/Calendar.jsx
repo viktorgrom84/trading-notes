@@ -89,7 +89,7 @@ const Calendar = () => {
     return (trade.sell_price - trade.buy_price) * trade.shares
   }
 
-  // Format currency with K notation for thousands
+  // Format currency with K notation for thousands — kept for reference but not used
   const formatCurrencyCompact = (amount) => {
     if (amount === null || amount === undefined) return '$0'
     
@@ -151,7 +151,7 @@ const Calendar = () => {
                 lineHeight: 1.2
               }}
             >
-              {formatCurrencyCompact(dailyPnL)}
+              {formatCurrency(dailyPnL)}
             </Text>
             <Box 
               style={{ 
@@ -287,7 +287,7 @@ const Calendar = () => {
                           {getProfitIcon(dailyPnL)}
                         </ActionIcon>
                         <Text size="lg" fw={700} c={getProfitColor(dailyPnL)}>
-                          {formatCurrencyCompact(dailyPnL)}
+                          {formatCurrency(dailyPnL)}
                         </Text>
                       </Group>
                     </Group>
