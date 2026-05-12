@@ -26,6 +26,23 @@ async function migrateTradesSchema(client) {
       await client.query(`ALTER TABLE trades ADD COLUMN ${name} ${def}`);
     }
   }
+
+  // Ensure trade_type constraint allows 'option' (old DBs only had 'regular','profit_only')
+  try {
+    const { rows } = await client.query(`
+      SELECT conname FROM pg_constraint
+      WHERE conrelid = 'trades'::regclass AND contype = 'c' AND conname LIKE '%trade_type%'
+    `);
+    for (const row of rows) {
+      await client.query(`ALTER TABLE trades DROP CONSTRAINT IF EXISTS "${row.conname}"`);
+    }
+    await client.query(`
+      ALTER TABLE trades ADD CONSTRAINT trades_trade_type_check
+      CHECK (trade_type IN ('regular', 'profit_only', 'option'))
+    `);
+  } catch {
+    // Constraint already correct or update not needed
+  }
 }
 
 export default async function handler(req, res) {
