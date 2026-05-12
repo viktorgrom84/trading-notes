@@ -9,7 +9,12 @@ import {
   Box, 
   Button,
   Grid,
-  ActionIcon
+  ActionIcon,
+  Modal,
+  TextInput,
+  NumberInput,
+  Textarea,
+  SegmentedControl
 } from '@mantine/core'
 import { Calendar as MantineCalendar } from '@mantine/dates'
 import { 
@@ -19,12 +24,121 @@ import {
   IconMinus
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
+import { useDisclosure } from '@mantine/hooks'
+import { useForm } from '@mantine/form'
 import apiClient from '../api'
 
 const Calendar = () => {
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [tradeMode, setTradeMode] = useState('regular')
+  const [opened, { open, close }] = useDisclosure(false)
+
+  const form = useForm({
+    initialValues: {
+      symbol: '',
+      shares: 0,
+      buyPrice: 0,
+      buyDate: '',
+      sellPrice: '',
+      sellDate: '',
+      notes: '',
+      profit: undefined,
+      positionType: 'long',
+      optionType: 'call',
+      strikePrice: 0,
+      expirationDate: '',
+      contracts: 1,
+      avgPrice: '',
+    },
+    validate: (values) => {
+      if (tradeMode === 'profit') {
+        return {
+          symbol: (!values.symbol ? 'Symbol is required' : null),
+          profit: (values.profit === undefined || values.profit === null || values.profit === '' ? 'Profit/Loss is required' : null),
+          buyDate: (!values.buyDate ? 'Trade date is required' : null),
+        }
+      } else if (tradeMode === 'option') {
+        return {
+          symbol: (!values.symbol ? 'Symbol is required' : null),
+          contracts: (values.contracts <= 0 ? 'Contracts must be greater than 0' : null),
+          buyPrice: (values.buyPrice <= 0 ? 'Premium must be greater than 0' : null),
+          strikePrice: (values.strikePrice <= 0 ? 'Strike price is required' : null),
+          buyDate: (!values.buyDate ? 'Open date is required' : null),
+          expirationDate: (!values.expirationDate ? 'Expiration date is required' : null),
+        }
+      } else {
+        return {
+          symbol: (!values.symbol ? 'Symbol is required' : null),
+          shares: (values.shares <= 0 ? 'Shares must be greater than 0' : null),
+          buyPrice: (values.buyPrice <= 0 ? 'Buy price must be greater than 0' : null),
+          buyDate: (!values.buyDate ? 'Buy date is required' : null),
+        }
+      }
+    },
+  })
+
+  const handleSubmit = async (values) => {
+    try {
+      let tradeData
+      if (tradeMode === 'profit') {
+        tradeData = {
+          symbol: values.symbol.toUpperCase(),
+          profit: parseFloat(values.profit),
+          buyDate: values.buyDate,
+          notes: values.notes || null,
+          positionType: values.positionType || 'long',
+          tradeType: 'profit_only',
+        }
+      } else if (tradeMode === 'option') {
+        tradeData = {
+          symbol: values.symbol.toUpperCase(),
+          contracts: parseInt(values.contracts),
+          buyPrice: parseFloat(values.buyPrice),
+          sellPrice: null,
+          buyDate: values.buyDate,
+          sellDate: null,
+          notes: values.notes || null,
+          positionType: values.positionType || 'short',
+          tradeType: 'option',
+          optionType: values.optionType,
+          strikePrice: parseFloat(values.strikePrice),
+          expirationDate: values.expirationDate,
+          avgPrice: values.avgPrice !== '' && values.avgPrice !== undefined ? parseFloat(values.avgPrice) : null,
+        }
+      } else {
+        tradeData = {
+          symbol: values.symbol.toUpperCase(),
+          shares: parseInt(values.shares),
+          buyPrice: parseFloat(values.buyPrice),
+          sellPrice: values.sellPrice ? parseFloat(values.sellPrice) : null,
+          buyDate: values.buyDate,
+          sellDate: values.sellDate || null,
+          notes: values.notes || null,
+          positionType: values.positionType || 'long',
+          tradeType: 'regular',
+        }
+      }
+
+      await apiClient.createTrade(tradeData)
+      notifications.show({
+        title: 'Success',
+        message: 'Trade added successfully',
+        color: 'green',
+      })
+      await loadTrades()
+      close()
+      form.reset()
+    } catch (error) {
+      console.error('Error saving trade:', error)
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to save trade',
+        color: 'red',
+      })
+    }
+  }
 
   useEffect(() => {
     loadTrades()
@@ -191,6 +305,11 @@ const Calendar = () => {
           leftSection={<IconPlus size={16} />}
           variant="gradient"
           gradient={{ from: 'blue', to: 'purple' }}
+          onClick={() => {
+            setTradeMode('regular')
+            form.reset()
+            open()
+          }}
         >
           Add Trade
         </Button>
@@ -356,6 +475,176 @@ const Calendar = () => {
           </Card>
         </Grid.Col>
       </Grid>
+
+      {/* Add Trade Modal */}
+      <Modal
+        opened={opened}
+        onClose={close}
+        title="Add New Trade"
+        size="lg"
+      >
+        <form onSubmit={form.onSubmit(handleSubmit)}>
+          <Stack gap="md">
+            <Group justify="center" mb="md">
+              <SegmentedControl
+                value={tradeMode}
+                onChange={(value) => {
+                  setTradeMode(value)
+                  form.reset()
+                  if (value === 'option') form.setFieldValue('positionType', 'short')
+                }}
+                data={[
+                  { label: 'Regular', value: 'regular' },
+                  { label: 'Option', value: 'option' },
+                  { label: 'Profit Only', value: 'profit' },
+                ]}
+                size="sm"
+              />
+            </Group>
+
+            {tradeMode === 'profit' ? (
+              <Grid>
+                <Grid.Col span={6}>
+                  <TextInput label="Symbol" placeholder="e.g., AAPL" {...form.getInputProps('symbol')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput label="Profit/Loss" placeholder="0.00" decimalScale={2} prefix="$" {...form.getInputProps('profit')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <TextInput label="Trade Date" type="date" {...form.getInputProps('buyDate')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <div>
+                    <Text size="sm" fw={500} mb="xs">Position Type</Text>
+                    <SegmentedControl
+                      data={[{ label: 'Long', value: 'long' }, { label: 'Short', value: 'short' }]}
+                      value={form.values.positionType}
+                      onChange={(value) => form.setFieldValue('positionType', value)}
+                    />
+                  </div>
+                </Grid.Col>
+              </Grid>
+            ) : tradeMode === 'option' ? (
+              <Grid>
+                <Grid.Col span={6}>
+                  <TextInput label="Symbol" placeholder="e.g., AAPL" {...form.getInputProps('symbol')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <div>
+                    <Text size="sm" fw={500} mb="xs">Option Type</Text>
+                    <SegmentedControl
+                      data={[{ label: 'Call', value: 'call' }, { label: 'Put', value: 'put' }]}
+                      value={form.values.optionType}
+                      onChange={(value) => form.setFieldValue('optionType', value)}
+                      fullWidth
+                    />
+                  </div>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput label="Strike Price" placeholder="150.00" min={0} decimalScale={2} prefix="$" {...form.getInputProps('strikePrice')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput label="Avg Stock Price" placeholder="148.50" min={0} decimalScale={2} prefix="$" {...form.getInputProps('avgPrice')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <TextInput label="Expiration Date" type="date" {...form.getInputProps('expirationDate')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput label="Contracts" placeholder="1" min={1} {...form.getInputProps('contracts')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <div>
+                    <Text size="sm" fw={500} mb="xs">Action</Text>
+                    <SegmentedControl
+                      data={[{ label: 'Covered Call', value: 'short' }, { label: 'Buy', value: 'long' }]}
+                      value={form.values.positionType}
+                      onChange={(value) => form.setFieldValue('positionType', value)}
+                      fullWidth
+                    />
+                  </div>
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput
+                    label={form.values.positionType === 'short' ? 'Premium Received' : 'Premium Paid'}
+                    placeholder="2.50"
+                    min={0}
+                    decimalScale={2}
+                    prefix="$"
+                    {...form.getInputProps('buyPrice')}
+                  />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <TextInput label="Open Date" type="date" {...form.getInputProps('buyDate')} />
+                </Grid.Col>
+              </Grid>
+            ) : (
+              <Grid>
+                <Grid.Col span={6}>
+                  <TextInput label="Symbol" placeholder="e.g., AAPL" {...form.getInputProps('symbol')} />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <NumberInput label="Shares" placeholder="Number of shares" min={1} {...form.getInputProps('shares')} />
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <div>
+                    <Text size="sm" fw={500} mb="xs">Position Type</Text>
+                    <SegmentedControl
+                      data={[{ label: 'Long', value: 'long' }, { label: 'Short', value: 'short' }]}
+                      value={form.values.positionType}
+                      onChange={(value) => form.setFieldValue('positionType', value)}
+                    />
+                  </div>
+                </Grid.Col>
+                {form.values.positionType === 'short' ? (
+                  <>
+                    <Grid.Col span={6}>
+                      <NumberInput label="Sell Price (Entry)" placeholder="0.00" min={0} decimalScale={2} prefix="$" {...form.getInputProps('sellPrice')} />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <NumberInput label="Buy Price (Exit)" placeholder="0.00" min={0} decimalScale={2} prefix="$" {...form.getInputProps('buyPrice')} />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <TextInput label="Sell Date (Entry)" type="date" {...form.getInputProps('sellDate')} />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <TextInput label="Buy Date (Exit)" type="date" {...form.getInputProps('buyDate')} />
+                    </Grid.Col>
+                  </>
+                ) : (
+                  <>
+                    <Grid.Col span={6}>
+                      <NumberInput label="Buy Price (Entry)" placeholder="0.00" min={0} decimalScale={2} prefix="$" {...form.getInputProps('buyPrice')} />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <NumberInput label="Sell Price (Exit)" placeholder="0.00" min={0} decimalScale={2} prefix="$" {...form.getInputProps('sellPrice')} />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <TextInput label="Buy Date (Entry)" type="date" {...form.getInputProps('buyDate')} />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <TextInput label="Sell Date (Exit)" type="date" {...form.getInputProps('sellDate')} />
+                    </Grid.Col>
+                  </>
+                )}
+              </Grid>
+            )}
+
+            <Textarea
+              label="Notes"
+              placeholder="Additional notes about this trade..."
+              rows={3}
+              {...form.getInputProps('notes')}
+            />
+
+            <Group justify="flex-end" mt="md">
+              <Button variant="outline" onClick={close}>Cancel</Button>
+              <Button type="submit" variant="gradient" gradient={{ from: 'blue', to: 'purple' }}>
+                Add Trade
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
     </Stack>
   )
 }
