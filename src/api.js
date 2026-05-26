@@ -36,6 +36,17 @@ class ApiClient {
     }
   }
 
+  isTokenExpired() {
+    if (!this.token) return true;
+    try {
+      const payload = JSON.parse(atob(this.token.split('.')[1]));
+      // exp is in seconds; give a 30-second buffer
+      return payload.exp * 1000 < Date.now() + 30_000;
+    } catch {
+      return true;
+    }
+  }
+
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
@@ -50,6 +61,12 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
       const data = await response.json();
+
+      if (response.status === 401) {
+        // Token expired or invalid — broadcast so the app can log the user out
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        throw new Error(data.message || 'Session expired. Please log in again.');
+      }
 
       if (!response.ok) {
         throw new Error(data.message || 'Something went wrong');

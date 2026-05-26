@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { 
   Card, 
   Title, 
@@ -14,21 +15,47 @@ import {
   TextInput,
   NumberInput,
   Textarea,
-  SegmentedControl
+  SegmentedControl,
+  Tooltip,
+  Divider
 } from '@mantine/core'
 import { Calendar as MantineCalendar } from '@mantine/dates'
 import { 
   IconPlus, 
   IconTrendingUp, 
   IconTrendingDown, 
-  IconMinus
+  IconMinus,
+  IconArrowUpRight
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useDisclosure } from '@mantine/hooks'
 import { useForm } from '@mantine/form'
 import apiClient from '../api'
 
+const getTradeTypeLabel = (trade) => {
+  if (trade.trade_type === 'option') {
+    if (trade.position_type === 'short')
+      return trade.option_type === 'call' ? 'Covered Call' : 'Put Sell'
+    return trade.option_type === 'call' ? 'Call Buy' : 'Put Buy'
+  }
+  if (trade.position_type === 'short') return 'Short'
+  return 'Long'
+}
+
+const getTradeTypeBadgeColor = (trade) => {
+  if (trade.trade_type === 'option')
+    return trade.position_type === 'short' ? 'orange' : 'grape'
+  return trade.position_type === 'short' ? 'red' : 'blue'
+}
+
+const fmtDate = (raw) => {
+  if (!raw) return ''
+  const d = raw.includes('T') ? new Date(raw) : new Date(raw + 'T12:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 const Calendar = () => {
+  const navigate = useNavigate()
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -422,52 +449,151 @@ const Calendar = () => {
                   </Card>
                   
                   <Stack gap="xs">
-                    {dayTrades.map((trade, index) => (
-                      <Card 
-                        key={`${trade.id}-${index}`} 
-                        p="sm" 
-                        radius="md" 
-                        withBorder
-                        style={{ 
-                          backgroundColor: 'var(--mantine-color-gray-0)',
-                          transition: 'all 0.2s ease'
-                        }}
-                        className="hover:shadow-md"
-                      >
-                        <Group justify="space-between">
-                          <Group gap="sm">
-                            <Badge 
-                              color={trade.buy_date && getLocalDateString(trade.buy_date) === localDateString ? 'blue' : 'green'}
-                              size="sm"
-                              variant="filled"
-                            >
-                              {trade.buy_date && getLocalDateString(trade.buy_date) === localDateString ? 'Entry' : 'Exit'}
-                            </Badge>
-                            <Text size="sm" fw={600} c="dark">
-                              {trade.symbol}
-                            </Text>
+                    {dayTrades.map((trade, index) => {
+                      const isEntry = trade.buy_date && getLocalDateString(trade.buy_date) === localDateString
+                      const profit = calculateProfit(trade)
+                      const profitColor = getProfitColor(profit)
+                      const isProfitOnly = trade.trade_type === 'profit_only'
+                      const isOption = trade.trade_type === 'option'
+
+                      return (
+                        <Card
+                          key={`${trade.id}-${index}`}
+                          p="sm"
+                          radius="md"
+                          withBorder
+                          style={{
+                            backgroundColor: 'var(--mantine-color-gray-0)',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {/* Row 1: badges + symbol + link */}
+                          <Group justify="space-between" wrap="nowrap" gap={4}>
+                            <Group gap={6} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                              <Badge
+                                color={isEntry ? 'blue' : 'green'}
+                                size="xs"
+                                variant="filled"
+                                style={{ flexShrink: 0 }}
+                              >
+                                {isEntry ? 'Entry' : 'Exit'}
+                              </Badge>
+                              <Text size="sm" fw={700} c="dark" truncate>
+                                {trade.symbol}
+                              </Text>
+                            </Group>
+                            <Group gap={4} style={{ flexShrink: 0 }}>
+                              <Badge color={getTradeTypeBadgeColor(trade)} size="xs" variant="light">
+                                {getTradeTypeLabel(trade)}
+                              </Badge>
+                              <Tooltip label="Open trade" withArrow position="top">
+                                <ActionIcon
+                                  size="xs"
+                                  variant="subtle"
+                                  color="blue"
+                                  onClick={() => navigate('/trades', { state: { openTradeId: trade.id } })}
+                                >
+                                  <IconArrowUpRight size={12} />
+                                </ActionIcon>
+                              </Tooltip>
+                            </Group>
                           </Group>
-                          <Badge
-                            color={trade.trade_type === 'option'
-                              ? (trade.position_type === 'short' ? 'orange' : 'grape')
-                              : (trade.position_type === 'short' ? 'red' : 'blue')}
-                            size="sm"
-                            variant="light"
-                          >
-                            {trade.trade_type === 'option'
-                              ? (trade.position_type === 'short'
-                                  ? (trade.option_type === 'call' ? 'Covered Call' : 'Put Sell')
-                                  : (trade.option_type === 'call' ? 'Call Buy' : 'Put Buy'))
-                              : (trade.position_type === 'short' ? 'Short' : 'Long')}
-                          </Badge>
-                        </Group>
-                        {trade.notes && (
-                          <Text size="xs" c="dimmed" mt="xs" lineClamp={2}>
-                            {trade.notes}
-                          </Text>
-                        )}
-                      </Card>
-                    ))}
+
+                          <Divider my={6} />
+
+                          {/* Row 2: trade-type-specific details */}
+                          {isProfitOnly ? (
+                            <Group justify="space-between">
+                              <Text size="xs" c="dimmed">P&L</Text>
+                              <Text size="xs" fw={700} c={profitColor}>
+                                {profit !== null ? `${profit >= 0 ? '+' : ''}${formatCurrency(profit)}` : '—'}
+                              </Text>
+                            </Group>
+                          ) : isOption ? (
+                            <Stack gap={3}>
+                              <Group justify="space-between">
+                                <Text size="xs" c="dimmed">Contracts</Text>
+                                <Text size="xs" fw={500}>{trade.shares ?? '—'}</Text>
+                              </Group>
+                              <Group justify="space-between">
+                                <Text size="xs" c="dimmed">Strike</Text>
+                                <Text size="xs" fw={500}>
+                                  {trade.strike_price ? `$${parseFloat(trade.strike_price).toFixed(2)}` : '—'}
+                                </Text>
+                              </Group>
+                              <Group justify="space-between">
+                                <Text size="xs" c="dimmed">Premium</Text>
+                                <Text size="xs" fw={500}>
+                                  {trade.buy_price ? `$${parseFloat(trade.buy_price).toFixed(2)}` : '—'}
+                                </Text>
+                              </Group>
+                              {trade.expiration_date && (
+                                <Group justify="space-between">
+                                  <Text size="xs" c="dimmed">Exp</Text>
+                                  <Text size="xs" fw={500}>{fmtDate(trade.expiration_date)}</Text>
+                                </Group>
+                              )}
+                              {profit !== null && (
+                                <Group justify="space-between" mt={2}>
+                                  <Text size="xs" c="dimmed">P&L</Text>
+                                  <Text size="xs" fw={700} c={profitColor}>
+                                    {profit >= 0 ? '+' : ''}{formatCurrency(profit)}
+                                  </Text>
+                                </Group>
+                              )}
+                            </Stack>
+                          ) : (
+                            <Stack gap={3}>
+                              {trade.shares && (
+                                <Group justify="space-between">
+                                  <Text size="xs" c="dimmed">Shares</Text>
+                                  <Text size="xs" fw={500}>{trade.shares}</Text>
+                                </Group>
+                              )}
+                              {isEntry ? (
+                                <Group justify="space-between">
+                                  <Text size="xs" c="dimmed">Entry</Text>
+                                  <Text size="xs" fw={500}>
+                                    {trade.buy_price ? `$${parseFloat(trade.buy_price).toFixed(2)}` : '—'}
+                                  </Text>
+                                </Group>
+                              ) : (
+                                <>
+                                  <Group justify="space-between">
+                                    <Text size="xs" c="dimmed">Buy → Sell</Text>
+                                    <Text size="xs" fw={500}>
+                                      ${parseFloat(trade.buy_price).toFixed(2)} → ${parseFloat(trade.sell_price).toFixed(2)}
+                                    </Text>
+                                  </Group>
+                                </>
+                              )}
+                              {profit !== null && (
+                                <Group justify="space-between" mt={2}>
+                                  <Text size="xs" c="dimmed">P&L</Text>
+                                  <Text size="xs" fw={700} c={profitColor}>
+                                    {profit >= 0 ? '+' : ''}{formatCurrency(profit)}
+                                  </Text>
+                                </Group>
+                              )}
+                              {!profit && isEntry && !trade.sell_price && (
+                                <Group justify="space-between">
+                                  <Text size="xs" c="dimmed">Status</Text>
+                                  <Badge size="xs" color="yellow" variant="light">Open</Badge>
+                                </Group>
+                              )}
+                            </Stack>
+                          )}
+
+                          {/* Notes (if any) */}
+                          {trade.notes && (
+                            <>
+                              <Divider my={6} />
+                              <Text size="xs" c="dimmed" lineClamp={2}>{trade.notes}</Text>
+                            </>
+                          )}
+                        </Card>
+                      )
+                    })}
                   </Stack>
                 </Stack>
               )

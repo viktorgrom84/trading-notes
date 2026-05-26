@@ -27,7 +27,8 @@ import {
   IconBrain,
   IconChartCandle,
   IconReportMoney,
-  IconWorld
+  IconWorld,
+  IconRocket
 } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
 import { checkAdminAccess } from '../utils/admin'
@@ -49,6 +50,7 @@ const Navbar = ({ user, onLogout }) => {
   const marketItems = [
     { path: '/earnings',        label: 'Earnings',         icon: IconReportMoney },
     { path: '/economic-events', label: 'Economic Events',  icon: IconWorld },
+    { path: '/ipos',            label: 'Upcoming IPOs',    icon: IconRocket },
   ]
 
   // "Analysis" dropdown

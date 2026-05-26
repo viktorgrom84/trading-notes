@@ -16,6 +16,7 @@ import AIAnalysis from './components/AIAnalysis'
 import TradingViewMCP from './components/TradingViewMCP'
 import Earnings from './components/Earnings'
 import EconomicEvents from './components/EconomicEvents'
+import IPOs from './components/IPOs'
 import Navbar from './components/Navbar'
 import apiClient from './api'
 
@@ -30,14 +31,28 @@ function App() {
   const [user, setUser] = useState(null)
 
   useEffect(() => {
-    // Check if user is logged in (from localStorage)
     const savedUser = localStorage.getItem('tradingUser')
     const token = localStorage.getItem('authToken')
-    
-    if (savedUser && token) {
+
+    if (savedUser && token && !apiClient.isTokenExpired()) {
       setUser(JSON.parse(savedUser))
       setIsAuthenticated(true)
+    } else if (savedUser || token) {
+      // Stale or expired session — clear it so the user sees the login screen
+      localStorage.removeItem('tradingUser')
+      apiClient.clearToken()
     }
+  }, [])
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null)
+      setIsAuthenticated(false)
+      localStorage.removeItem('tradingUser')
+      apiClient.clearToken()
+    }
+    window.addEventListener('auth:unauthorized', onUnauthorized)
+    return () => window.removeEventListener('auth:unauthorized', onUnauthorized)
   }, [])
 
   const handleLogin = (userData) => {
@@ -73,6 +88,7 @@ function App() {
                     <Route path="/tradingview-mcp" element={<TradingViewMCP />} />
                     <Route path="/earnings" element={<Earnings />} />
                     <Route path="/economic-events" element={<EconomicEvents />} />
+                    <Route path="/ipos" element={<IPOs />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>

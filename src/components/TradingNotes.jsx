@@ -47,9 +47,12 @@ import {
 import { useForm } from '@mantine/form'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
+import { useLocation, useNavigate } from 'react-router-dom'
 import apiClient from '../api'
 
 const TradingNotes = () => {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [trades, setTrades] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -110,6 +113,19 @@ const TradingNotes = () => {
   useEffect(() => {
     loadTrades()
   }, [])
+
+  // When navigated from Calendar with a specific trade ID, open its edit drawer
+  useEffect(() => {
+    const targetId = location.state?.openTradeId
+    if (!targetId || loading || trades.length === 0) return
+    const trade = trades.find(t => t.id === targetId)
+    if (trade) {
+      handleEdit(trade)
+      open()
+      // Clear the state so a back-navigation doesn't re-open it
+      navigate('/trades', { replace: true, state: {} })
+    }
+  }, [location.state?.openTradeId, loading, trades])
 
   const loadTrades = async () => {
     try {
