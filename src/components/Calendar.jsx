@@ -194,6 +194,10 @@ const Calendar = () => {
       parts.push(`${contracts} contract${contracts > 1 ? 's' : ''}`)
     if (buyPrice && buyPrice > 0)
       parts.push(`Premium: $${parseFloat(buyPrice).toFixed(2)}`)
+    if (form.values.buyDate) {
+      const od = new Date(form.values.buyDate + 'T12:00:00')
+      parts.push(`Opened: ${od.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}`)
+    }
     parts.push(action)
 
     const generated = parts.join(' · ')
@@ -202,7 +206,7 @@ const Calendar = () => {
       autoNoteRef.current = generated
       form.setFieldValue('notes', generated)
     }
-  }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType])
+  }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType, form.values.buyDate])
 
   const loadTrades = async () => {
     try {
