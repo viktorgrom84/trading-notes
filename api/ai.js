@@ -71,6 +71,19 @@ async function handleAnalyze(req, res, decoded) {
   // Server-side weekly rate limit — enforced in DB, not bypassable from the client
   const client = await pool.connect()
   try {
+    // Ensure the table exists (safe on repeated calls)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        setting_key VARCHAR(50) NOT NULL,
+        setting_value TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, setting_key)
+      )
+    `)
+
     const result = await client.query(
       `SELECT setting_value FROM user_settings WHERE user_id = $1 AND setting_key = 'aiAnalysisLastUsed'`,
       [decoded.userId]
