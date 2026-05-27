@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Card, 
@@ -170,6 +170,39 @@ const Calendar = () => {
   useEffect(() => {
     loadTrades()
   }, [])
+
+  // Auto-populate Notes when option fields change
+  const autoNoteRef = useRef('')
+  useEffect(() => {
+    if (tradeMode !== 'option') return
+
+    const { symbol, optionType, strikePrice, expirationDate, avgPrice, contracts, buyPrice, positionType } = form.values
+    const type = optionType === 'call' ? 'CALL' : 'PUT'
+    const action = positionType === 'short' ? 'Covered Call' : 'Buy'
+    const parts = []
+
+    if (symbol)      parts.push(symbol.toUpperCase())
+    if (type)        parts.push(`${type}`)
+    if (strikePrice) parts.push(`Strike: $${parseFloat(strikePrice).toFixed(2)}`)
+    if (expirationDate) {
+      const d = new Date(expirationDate + 'T12:00:00')
+      parts.push(`Exp: ${d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}`)
+    }
+    if (avgPrice !== '' && avgPrice !== undefined && avgPrice !== null)
+      parts.push(`Avg: $${parseFloat(avgPrice).toFixed(2)}`)
+    if (contracts && contracts > 0)
+      parts.push(`${contracts} contract${contracts > 1 ? 's' : ''}`)
+    if (buyPrice && buyPrice > 0)
+      parts.push(`Premium: $${parseFloat(buyPrice).toFixed(2)}`)
+    parts.push(action)
+
+    const generated = parts.join(' · ')
+
+    if (form.values.notes === '' || form.values.notes === autoNoteRef.current) {
+      autoNoteRef.current = generated
+      form.setFieldValue('notes', generated)
+    }
+  }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType])
 
   const loadTrades = async () => {
     try {
