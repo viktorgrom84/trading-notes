@@ -68,48 +68,52 @@ async function handleAnalyze(req, res, decoded) {
     return res.status(400).json({ message: 'Trades data is required' })
   }
 
-  // Server-side weekly rate limit — enforced in DB, not bypassable from the client
-  const client = await pool.connect()
-  try {
-    // Ensure the table exists (safe on repeated calls)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS user_settings (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        setting_key VARCHAR(50) NOT NULL,
-        setting_value TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, setting_key)
+  // Admin users bypass the weekly rate limit entirely
+  const isAdmin = decoded.username === process.env.ADMIN_USERNAME
+
+  if (!isAdmin) {
+    const client = await pool.connect()
+    try {
+      // Ensure the table exists (safe on repeated calls)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_settings (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          setting_key VARCHAR(50) NOT NULL,
+          setting_value TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, setting_key)
+        )
+      `)
+
+      const result = await client.query(
+        `SELECT setting_value FROM user_settings WHERE user_id = $1 AND setting_key = 'aiAnalysisLastUsed'`,
+        [decoded.userId]
       )
-    `)
-
-    const result = await client.query(
-      `SELECT setting_value FROM user_settings WHERE user_id = $1 AND setting_key = 'aiAnalysisLastUsed'`,
-      [decoded.userId]
-    )
-    if (result.rows.length > 0) {
-      const lastUsed = new Date(result.rows[0].setting_value)
-      const msSinceLast = Date.now() - lastUsed.getTime()
-      if (msSinceLast < WEEK_MS) {
-        const nextAvailable = new Date(lastUsed.getTime() + WEEK_MS)
-        return res.status(429).json({
-          message: 'Weekly limit reached. One analysis per week per user.',
-          nextAvailable: nextAvailable.toISOString()
-        })
+      if (result.rows.length > 0) {
+        const lastUsed = new Date(result.rows[0].setting_value)
+        const msSinceLast = Date.now() - lastUsed.getTime()
+        if (msSinceLast < WEEK_MS) {
+          const nextAvailable = new Date(lastUsed.getTime() + WEEK_MS)
+          return res.status(429).json({
+            message: 'Weekly limit reached. One analysis per week per user.',
+            nextAvailable: nextAvailable.toISOString()
+          })
+        }
       }
-    }
 
-    // Stamp the timestamp now, before calling OpenAI, so double-clicks can't slip through
-    await client.query(
-      `INSERT INTO user_settings (user_id, setting_key, setting_value, updated_at)
-       VALUES ($1, 'aiAnalysisLastUsed', $2, CURRENT_TIMESTAMP)
-       ON CONFLICT (user_id, setting_key)
-       DO UPDATE SET setting_value = $2, updated_at = CURRENT_TIMESTAMP`,
-      [decoded.userId, new Date().toISOString()]
-    )
-  } finally {
-    client.release()
+      // Stamp the timestamp now, before calling OpenAI, so double-clicks can't slip through
+      await client.query(
+        `INSERT INTO user_settings (user_id, setting_key, setting_value, updated_at)
+         VALUES ($1, 'aiAnalysisLastUsed', $2, CURRENT_TIMESTAMP)
+         ON CONFLICT (user_id, setting_key)
+         DO UPDATE SET setting_value = $2, updated_at = CURRENT_TIMESTAMP`,
+        [decoded.userId, new Date().toISOString()]
+      )
+    } finally {
+      client.release()
+    }
   }
 
   // Get OpenAI API key from environment
