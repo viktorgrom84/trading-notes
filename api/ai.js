@@ -132,12 +132,15 @@ async function handleAnalyze(req, res, decoded) {
     } else if (isOption) {
       const premium = parseFloat(trade.buy_price)
       if (trade.sell_price != null && trade.sell_date) {
+        // Closed option: short = premium collected minus buyback cost; long = exit minus entry
         const closePrice = parseFloat(trade.sell_price)
         profit = isShort ? premium - closePrice : closePrice - premium
-      } else {
-        // Open option — unrealized
-        profit = null
+      } else if (isShort) {
+        // Short option (covered call / put sell) with no closing trade:
+        // the full premium collected is the realized P&L
+        profit = premium
       }
+      // Long option with no closing trade = still open, profit stays null
     } else if (trade.sell_price && trade.sell_date) {
       profit = (trade.sell_price - trade.buy_price) * trade.shares
     }

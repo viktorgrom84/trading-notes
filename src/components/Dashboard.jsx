@@ -84,14 +84,19 @@ const Dashboard = ({ user }) => {
       const settings = await apiClient.getSettings()
       if (settings.performanceTarget) {
         setPerformanceTarget(parseFloat(settings.performanceTarget))
+      } else {
+        // DB has no value yet — migrate from localStorage if present
+        const saved = localStorage.getItem('performanceTarget')
+        if (saved) {
+          const val = parseFloat(saved)
+          setPerformanceTarget(val)
+          try { await apiClient.setSetting('performanceTarget', val.toString()) } catch {}
+        }
       }
     } catch (error) {
       console.error('Failed to load performance target:', error)
-      // Fallback to localStorage for existing users
       const saved = localStorage.getItem('performanceTarget')
-      if (saved) {
-        setPerformanceTarget(parseFloat(saved))
-      }
+      if (saved) setPerformanceTarget(parseFloat(saved))
     }
   }, [])
 
@@ -116,6 +121,15 @@ const Dashboard = ({ user }) => {
         const val = parseFloat(settings.yearlyGoal)
         setYearlyGoal(val)
         setGoalInput(val)
+      } else {
+        // DB has no value yet — migrate from localStorage if present
+        const saved = localStorage.getItem('yearlyGoal')
+        if (saved) {
+          const val = parseFloat(saved)
+          setYearlyGoal(val)
+          setGoalInput(val)
+          try { await apiClient.setSetting('yearlyGoal', val.toString()) } catch {}
+        }
       }
     } catch {
       const saved = localStorage.getItem('yearlyGoal')
