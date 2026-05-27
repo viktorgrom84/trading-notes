@@ -33,6 +33,7 @@ import {
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import apiClient from '../api'
+import { checkAdminAccess } from '../utils/admin'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -71,15 +72,18 @@ const AIAnalysis = ({ user }) => {
     }
   }, [])
 
+  const isAdmin = useMemo(() => checkAdminAccess(user), [user])
+
   const nextAvailableDate = useMemo(() => {
     if (!lastAnalysisDate) return null
     return new Date(lastAnalysisDate.getTime() + WEEK_MS)
   }, [lastAnalysisDate])
 
   const canAnalyze = useMemo(() => {
+    if (isAdmin) return true
     if (!lastAnalysisDate) return true
     return Date.now() - lastAnalysisDate.getTime() >= WEEK_MS
-  }, [lastAnalysisDate])
+  }, [isAdmin, lastAnalysisDate])
 
   const timeUntilNext = useMemo(() => {
     if (!nextAvailableDate || canAnalyze) return ''
@@ -363,8 +367,8 @@ const AIAnalysis = ({ user }) => {
           </Group>
         </Group>
 
-        {/* Weekly limit banner */}
-        {settingsLoaded && !canAnalyze && (
+        {/* Weekly limit banner — hidden for admin */}
+        {settingsLoaded && !canAnalyze && !isAdmin && (
           <Alert icon={<IconClock size={16} />} color="orange" title="Weekly limit reached">
             You've used your AI analysis for this week. Your next analysis will be available on{' '}
             <strong>{nextAvailableDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
