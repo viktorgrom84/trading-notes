@@ -114,10 +114,10 @@ const TradingNotes = () => {
     loadTrades()
   }, [])
 
-  // Auto-populate Notes when option fields change (new trades only)
+  // Auto-populate Notes when option fields change
   const autoNoteRef = useRef('')
   useEffect(() => {
-    if (tradeMode !== 'option' || editingTrade) return
+    if (tradeMode !== 'option') return
 
     const { symbol, optionType, strikePrice, expirationDate, avgPrice, contracts, buyPrice, positionType } = form.values
     const type = optionType === 'call' ? 'CALL' : 'PUT'
@@ -262,6 +262,10 @@ const TradingNotes = () => {
     if (isOption) setTradeMode('option')
     else if (isProfitOnly) setTradeMode('profit')
     else setTradeMode('regular')
+
+    // Seed the auto-note ref with the trade's current notes so that any
+    // field change will correctly trigger a regeneration
+    autoNoteRef.current = trade.notes || ''
     
     const formatDateForInput = (date) => {
       if (!date) return ''
