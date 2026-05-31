@@ -140,7 +140,7 @@ export default function IPOs() {
     setLoading(true)
     setData(null)
     try {
-      const res = await fetch(`/api/ipos?date=${m}`)
+      const res = await fetch(`/api/market-calendar?type=ipos&date=${m}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       setData(json)

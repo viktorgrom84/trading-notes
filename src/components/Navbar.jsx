@@ -28,7 +28,8 @@ import {
   IconChartCandle,
   IconReportMoney,
   IconWorld,
-  IconRocket
+  IconRocket,
+  IconChartLine
 } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
 import { checkAdminAccess } from '../utils/admin'
@@ -48,9 +49,10 @@ const Navbar = ({ user, onLogout }) => {
 
   // "Markets" dropdown
   const marketItems = [
-    { path: '/earnings',        label: 'Earnings',         icon: IconReportMoney },
-    { path: '/economic-events', label: 'Economic Events',  icon: IconWorld },
-    { path: '/ipos',            label: 'Upcoming IPOs',    icon: IconRocket },
+    { path: '/earnings',          label: 'Earnings',          icon: IconReportMoney },
+    { path: '/economic-events',   label: 'Economic Events',   icon: IconWorld },
+    { path: '/ipos',              label: 'Upcoming IPOs',     icon: IconRocket },
+    { path: '/market-indicators', label: 'Market Indicators', icon: IconChartLine },
   ]
 
   // "Analysis" dropdown

@@ -17,6 +17,7 @@ import TradingViewMCP from './components/TradingViewMCP'
 import Earnings from './components/Earnings'
 import EconomicEvents from './components/EconomicEvents'
 import IPOs from './components/IPOs'
+import MarketIndicators from './components/MarketIndicators'
 import Navbar from './components/Navbar'
 import apiClient from './api'
 
@@ -89,6 +90,7 @@ function App() {
                     <Route path="/earnings" element={<Earnings />} />
                     <Route path="/economic-events" element={<EconomicEvents />} />
                     <Route path="/ipos" element={<IPOs />} />
+                    <Route path="/market-indicators" element={<MarketIndicators />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>

@@ -46,7 +46,7 @@ export default function Earnings() {
     setLoading(true)
     setEarnings([])
     try {
-      const res = await fetch(`/api/earnings?date=${d}`)
+      const res = await fetch(`/api/market-calendar?date=${d}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setEarnings(data.earnings || [])
