@@ -24,8 +24,8 @@ export default async function handler(req, res) {
 
     const html = await response.text()
 
-    // Parse table rows: <tr><td>Month DD, YYYY</td><td>XX.XX</td></tr>
-    const rowRegex = /<tr[^>]*>\s*<td[^>]*>([A-Za-z]+ \d{1,2},\s*\d{4})<\/td>\s*<td[^>]*>([\d.]+)<\/td>\s*<\/tr>/g
+    // Parse table rows — value cell contains &#x2002; whitespace before the number
+    const rowRegex = /<tr[^>]*>\s*<td[^>]*>([A-Za-z]+ \d{1,2}, \d{4})<\/td>\s*<td[^>]*>[\s\S]*?([\d.]+)\s*<\/td>\s*<\/tr>/g
     const history = []
     let match
 
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate') // 24-hr cache
     res.json({
       current,
-      history: history.slice(-120), // last 10 years of monthly data
+      history, // full history back to 1881
       historicalAverage: 17.0,
       longTermAverage: 16.8,
     })
