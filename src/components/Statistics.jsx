@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { 
   Container, 
   Grid, 
@@ -6,19 +6,16 @@ import {
   Text, 
   Group, 
   Stack, 
-  Button, 
   ThemeIcon, 
-  Badge, 
   Skeleton,
   Center,
   Box,
   SimpleGrid,
-  Paper,
   Title,
   ActionIcon,
   SegmentedControl,
   Table,
-  Progress
+  UnstyledButton,
 } from '@mantine/core'
 import { 
   IconTrendingUp, 
@@ -27,91 +24,48 @@ import {
   IconChartBar,
   IconArrowUpRight,
   IconArrowDownRight,
-  IconMinus,
   IconChartPie,
-  IconCalendar
+  IconSelector,
+  IconChevronUp,
+  IconChevronDown,
 } from '@tabler/icons-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
-import apiClient from '../api'
+import { useTrades } from '../context/TradesContext'
+import { formatCurrency, getProfitColor, parseLocalDate } from '../utils/format'
+import { tradeProfit, isTradeClosed } from '../utils/tradeProfit'
+
+// All supported time ranges
+const TIME_RANGES = [
+  { label: '1M',  value: '1month'  },
+  { label: '3M',  value: '3months' },
+  { label: '6M',  value: '6months' },
+  { label: '1Y',  value: '1year'   },
+  { label: '2Y',  value: '2years'  },
+  { label: 'All', value: 'all'     },
+]
 
 const Statistics = () => {
-  const [trades, setTrades] = useState([])
+  const { trades, loading } = useTrades()
   const [timeRange, setTimeRange] = useState('6months')
   const [chartType, setChartType] = useState('line')
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    loadTrades()
-  }, [])
-
-  const loadTrades = async () => {
-    try {
-      setLoading(true)
-      const trades = await apiClient.getTrades()
-      setTrades(trades)
-    } catch (error) {
-      console.error('Error loading trades:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [sortCol, setSortCol]     = useState('profit')   // 'symbol' | 'count' | 'profit' | 'avg'
+  const [sortDir, setSortDir]     = useState('desc')
 
   const getFilteredTrades = () => {
     const now = new Date()
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
-    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-    const allTime = new Date(0)
-
-    let cutoffDate
-    switch (timeRange) {
-      case '6months':
-        cutoffDate = sixMonthsAgo
-        break
-      case '1year':
-        cutoffDate = oneYearAgo
-        break
-      case 'all':
-      default:
-        cutoffDate = allTime
-        break
+    const cutoffs = {
+      '1month':  new Date(now.getFullYear(), now.getMonth() - 1,  now.getDate()),
+      '3months': new Date(now.getFullYear(), now.getMonth() - 3,  now.getDate()),
+      '6months': new Date(now.getFullYear(), now.getMonth() - 6,  now.getDate()),
+      '1year':   new Date(now.getFullYear() - 1, now.getMonth(),  now.getDate()),
+      '2years':  new Date(now.getFullYear() - 2, now.getMonth(),  now.getDate()),
+      'all':     new Date(0),
     }
-
-    return trades.filter(trade => {
-      const tradeDate = new Date(trade.buy_date)
-      return tradeDate >= cutoffDate
-    })
+    const cutoffDate = cutoffs[timeRange] ?? new Date(0)
+    return trades.filter(trade => (parseLocalDate(trade.buy_date) ?? new Date(0)) >= cutoffDate)
   }
 
-  const calcTradeProfit = (trade) => {
-    const isProfitOnly = trade.trade_type === 'profit_only' ||
-      (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
-    if (isProfitOnly) return parseFloat(trade.sell_price)
-
-    if (trade.trade_type === 'option') {
-      const isShort = trade.position_type === 'short'
-      const premium = parseFloat(trade.buy_price)
-      if (trade.sell_price !== null && trade.sell_price !== undefined && trade.sell_date) {
-        const closePrice = parseFloat(trade.sell_price)
-        return isShort ? premium - closePrice : closePrice - premium
-      }
-      // Open option: premium collected (short) or paid (long)
-      return isShort ? premium : -premium
-    }
-
-    return (trade.sell_price - trade.buy_price) * trade.shares
-  }
-
-  const getCompletedTrades = () => {
-    return getFilteredTrades().filter(trade => {
-      const isProfitOnly = trade.trade_type === 'profit_only' || 
-        (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
-      if (isProfitOnly) return trade.sell_price
-      if (trade.trade_type === 'option') return trade.sell_date || trade.position_type === 'short'
-      const isShort = trade.position_type === 'short'
-      if (isShort) return trade.sell_price && trade.sell_date && trade.buy_price && trade.buy_date
-      return trade.sell_price && trade.sell_date
-    })
-  }
+  const getCompletedTrades = () => getFilteredTrades().filter(isTradeClosed)
 
   const calculateStats = () => {
     const completedTrades = getCompletedTrades()
@@ -130,7 +84,7 @@ const Statistics = () => {
     }
 
     const profits = completedTrades.map(trade => {
-      const profit = calcTradeProfit(trade)
+      const profit = tradeProfit(trade)
       const isProfitOnly = trade.trade_type === 'profit_only' ||
         (trade.shares === 1 && trade.buy_price === 0 && trade.sell_price && trade.sell_price !== 0)
       const isOption = trade.trade_type === 'option'
@@ -162,60 +116,93 @@ const Statistics = () => {
 
   const getChartData = () => {
     const completedTrades = getCompletedTrades()
-    const getExitDate = (trade) => {
-      if (trade.trade_type === 'option' || trade.trade_type === 'profit_only') return trade.buy_date
-      return trade.sell_date || trade.buy_date
-    }
-    const sortedTrades = [...completedTrades].sort((a, b) => new Date(getExitDate(a)) - new Date(getExitDate(b)))
-    
-    let cumulativeProfit = 0
-    return sortedTrades.map(trade => {
-      const profit = calcTradeProfit(trade)
-      cumulativeProfit += profit
-      return {
-        date: new Date(getExitDate(trade)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        profit: profit,
-        cumulativeProfit: cumulativeProfit,
-        symbol: trade.symbol
-      }
+
+    // Use buy_date for options/profit_only (when premium was collected),
+    // sell_date for regular trades (when position was closed)
+    const getExitDate = (trade) =>
+      (trade.trade_type === 'option' || trade.trade_type === 'profit_only')
+        ? trade.buy_date
+        : trade.sell_date || trade.buy_date
+
+    // Aggregate into one data point per calendar day
+    const dailyMap = {}
+    completedTrades.forEach(trade => {
+      const raw = getExitDate(trade)
+      if (!raw) return
+      const key = (parseLocalDate(raw) ?? new Date(raw)).toLocaleDateString('en-CA')
+      if (!dailyMap[key]) dailyMap[key] = { key, profit: 0, trades: 0 }
+      dailyMap[key].profit += tradeProfit(trade) ?? 0
+      dailyMap[key].trades += 1
     })
+
+    // Sort chronologically and build chart rows
+    let cumulative = 0
+    return Object.values(dailyMap)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map(({ key, profit, trades }) => {
+        cumulative += profit
+        return {
+          date: new Date(key + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          profit,
+          trades,
+          cumulativeProfit: cumulative,
+        }
+      })
   }
 
   const getSymbolData = () => {
     const completedTrades = getCompletedTrades()
     const symbolMap = {}
-    
+
     completedTrades.forEach(trade => {
-      if (!symbolMap[trade.symbol]) {
-        symbolMap[trade.symbol] = { profit: 0, count: 0 }
-      }
-      symbolMap[trade.symbol].profit += calcTradeProfit(trade)
-      symbolMap[trade.symbol].count += 1
+      // Normalise to avoid "BULL" vs "BULL " duplicates
+      const key = (trade.symbol || '').trim().toUpperCase()
+      if (!symbolMap[key]) symbolMap[key] = { profit: 0, count: 0 }
+      symbolMap[key].profit += tradeProfit(trade) ?? 0
+      symbolMap[key].count  += 1
     })
 
-    return Object.entries(symbolMap).map(([symbol, data]) => ({
+    const rows = Object.entries(symbolMap).map(([symbol, data]) => ({
       symbol,
       profit: data.profit,
-      count: data.count
-    })).sort((a, b) => b.profit - a.profit)
+      count:  data.count,
+      avg:    data.profit / data.count,
+    }))
+
+    // Apply current sort
+    rows.sort((a, b) => {
+      let av = a[sortCol], bv = b[sortCol]
+      if (sortCol === 'symbol') {
+        av = av.toLowerCase()
+        bv = bv.toLowerCase()
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ?  1 : -1
+      return 0
+    })
+
+    return rows
+  }
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('desc') }
+  }
+
+  const SortIcon = ({ col }) => {
+    if (sortCol !== col) return <IconSelector size={14} style={{ opacity: 0.4 }} />
+    return sortDir === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />
   }
 
   const getWinLossData = () => {
     const completedTrades = getCompletedTrades()
-    const winning = completedTrades.filter(trade => calcTradeProfit(trade) > 0).length
+    const winning = completedTrades.filter(trade => tradeProfit(trade) > 0).length
     const losing = completedTrades.length - winning
 
     return [
       { name: 'Winning Trades', value: winning, color: '#10b981' },
       { name: 'Losing Trades', value: losing, color: '#ef4444' }
     ]
-  }
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
   }
 
   const stats = calculateStats()
@@ -225,33 +212,27 @@ const Statistics = () => {
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
-  const StatCard = ({ title, value, icon, color = 'blue', trend = null }) => (
-    <Card withBorder radius="md" p="xl">
-      <Group justify="space-between">
-        <div>
-          <Text size="sm" c="dimmed" fw={500} mb="xs">
-            {title}
-          </Text>
-          <Text size="xl" fw={700} c={value >= 0 ? 'green' : 'red'}>
-            {title === 'Total Trades' ? value : (typeof value === 'number' && value !== 0 ? formatCurrency(value) : value)}
-          </Text>
-          {trend && (
-            <Group gap="xs" mt="xs">
-              <ActionIcon size="sm" color={trend > 0 ? 'green' : 'red'} variant="light">
-                {trend > 0 ? <IconArrowUpRight size={12} /> : <IconArrowDownRight size={12} />}
-              </ActionIcon>
-              <Text size="xs" c={trend > 0 ? 'green' : 'red'}>
-                {trend > 0 ? '+' : ''}{trend.toFixed(1)}%
-              </Text>
-            </Group>
-          )}
-        </div>
-        <ThemeIcon size="xl" variant="light" color={color}>
-          {icon}
-        </ThemeIcon>
-      </Group>
-    </Card>
-  )
+  // valueColor: explicit text colour; falls back to green/red for numbers, 'inherit' for strings
+  const StatCard = ({ title, value, icon, color = 'blue', valueColor }) => {
+    const textColor = valueColor
+      ?? (title === 'Total Trades' ? 'dark' : typeof value === 'number' ? getProfitColor(value) : 'inherit')
+    const display = title === 'Total Trades'
+      ? value
+      : typeof value === 'number' ? formatCurrency(value) : value
+    return (
+      <Card withBorder radius="md" p="xl">
+        <Group justify="space-between">
+          <div>
+            <Text size="sm" c="dimmed" fw={500} mb="xs">{title}</Text>
+            <Text size="xl" fw={700} c={textColor}>{display}</Text>
+          </div>
+          <ThemeIcon size="xl" variant="light" color={color}>
+            {icon}
+          </ThemeIcon>
+        </Group>
+      </Card>
+    )
+  }
 
   if (loading) {
     return (
@@ -287,11 +268,7 @@ const Statistics = () => {
             <SegmentedControl
               value={timeRange}
               onChange={setTimeRange}
-              data={[
-                { label: '6 Months', value: '6months' },
-                { label: '1 Year', value: '1year' },
-                { label: 'All Time', value: 'all' }
-              ]}
+              data={TIME_RANGES}
             />
           </Group>
         </Card>
@@ -314,7 +291,8 @@ const Statistics = () => {
             title="Win Rate %"
             value={`${stats.winRate.toFixed(1)}%`}
             icon={<IconTrendingUp size={24} />}
-            color={Number(stats.winRate) >= 65 ? 'green' : 'red'} // Updated threshold
+            color={stats.winRate >= 65 ? 'green' : 'red'}
+            valueColor={stats.winRate >= 65 ? 'green' : 'red'}
           />
           <StatCard
             title="Avg Profit"
@@ -357,7 +335,7 @@ const Statistics = () => {
                   onChange={setChartType}
                   data={[
                     { label: 'Line', value: 'line' },
-                    { label: 'Bar', value: 'bar' }
+                    { label: 'Bar',  value: 'bar'  },
                   ]}
                 />
               </Group>
@@ -366,23 +344,35 @@ const Statistics = () => {
                   {chartType === 'line' ? (
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => [formatCurrency(value), 'Profit']} />
-                      <Line 
-                        type="monotone" 
-                        dataKey="profit" 
-                        stroke="#3b82f6" 
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip
+                        formatter={(value, name, props) => [
+                          `${formatCurrency(value)} (${props.payload?.trades ?? 1} trade${(props.payload?.trades ?? 1) !== 1 ? 's' : ''})`,
+                          'Daily P&L',
+                        ]}
+                        labelFormatter={(l) => `Date: ${l}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="profit"
+                        stroke="#3b82f6"
                         strokeWidth={2}
-                        dot={{ fill: '#3b82f6' }}
+                        dot={{ fill: '#3b82f6', r: 3 }}
                       />
                     </LineChart>
                   ) : (
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => [formatCurrency(value), 'Profit']} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip
+                        formatter={(value, name, props) => [
+                          `${formatCurrency(value)} (${props.payload?.trades ?? 1} trade${(props.payload?.trades ?? 1) !== 1 ? 's' : ''})`,
+                          'Daily P&L',
+                        ]}
+                        labelFormatter={(l) => `Date: ${l}`}
+                      />
                       <Bar dataKey="profit" fill="#3b82f6" />
                     </BarChart>
                   )}
@@ -427,34 +417,43 @@ const Statistics = () => {
           </Grid.Col>
         </Grid>
 
-        {/* Symbol Performance */}
+        {/* Symbol Performance — sortable */}
         {symbolData.length > 0 && (
           <Card withBorder p="xl">
             <Title order={3} mb="md">Performance by Symbol</Title>
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Symbol</Table.Th>
-                  <Table.Th>Trades</Table.Th>
-                  <Table.Th>Total Profit</Table.Th>
-                  <Table.Th>Avg Profit</Table.Th>
+                  {[
+                    { col: 'symbol', label: 'Symbol' },
+                    { col: 'count',  label: 'Trades'  },
+                    { col: 'profit', label: 'Total Profit' },
+                    { col: 'avg',    label: 'Avg Profit' },
+                  ].map(({ col, label }) => (
+                    <Table.Th key={col} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <UnstyledButton onClick={() => toggleSort(col)}>
+                        <Group gap={4} wrap="nowrap">
+                          <Text fw={600} size="sm">{label}</Text>
+                          <SortIcon col={col} />
+                        </Group>
+                      </UnstyledButton>
+                    </Table.Th>
+                  ))}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {symbolData.map((item) => (
                   <Table.Tr key={item.symbol}>
-                    <Table.Td>
-                      <Text fw={600}>{item.symbol}</Text>
-                    </Table.Td>
+                    <Table.Td><Text fw={600}>{item.symbol}</Text></Table.Td>
                     <Table.Td>{item.count}</Table.Td>
                     <Table.Td>
-                      <Text c={item.profit >= 0 ? 'green' : 'red'} fw={500}>
+                      <Text c={getProfitColor(item.profit)} fw={500}>
                         {formatCurrency(item.profit)}
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text c={item.profit >= 0 ? 'green' : 'red'}>
-                        {formatCurrency(item.profit / item.count)}
+                      <Text c={getProfitColor(item.avg)}>
+                        {formatCurrency(item.avg)}
                       </Text>
                     </Table.Td>
                   </Table.Tr>

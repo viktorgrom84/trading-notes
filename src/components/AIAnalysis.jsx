@@ -34,14 +34,14 @@ import {
 import { notifications } from '@mantine/notifications'
 import apiClient from '../api'
 import { checkAdminAccess } from '../utils/admin'
+import { useTrades } from '../context/TradesContext'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 const AIAnalysis = ({ user }) => {
-  const [trades, setTrades] = useState([])
+  const { trades, loading: tradesLoading } = useTrades()
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [tradesLoading, setTradesLoading] = useState(true)
   const [costData, setCostData] = useState(null)
   const [costModalOpened, setCostModalOpened] = useState(false)
   const [analysisHistory, setAnalysisHistory] = useState([])
@@ -52,7 +52,6 @@ const AIAnalysis = ({ user }) => {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
 
   useEffect(() => {
-    loadTrades()
     loadCostData()
     loadAnalysisHistory()
     loadLastAnalysisDate()
@@ -103,23 +102,6 @@ const AIAnalysis = ({ user }) => {
     const sortedTrades = [...trades].sort((a, b) => new Date(b.buy_date) - new Date(a.buy_date))
     return sortedTrades.slice(0, count)
   }, [trades, tradesToAnalyze])
-
-  const loadTrades = async () => {
-    try {
-      setTradesLoading(true)
-      const tradesData = await apiClient.getTrades()
-      setTrades(tradesData)
-    } catch (error) {
-      console.error('Error loading trades:', error)
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to load trades',
-        color: 'red',
-      })
-    } finally {
-      setTradesLoading(false)
-    }
-  }
 
   const loadCostData = async () => {
     try {

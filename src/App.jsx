@@ -18,8 +18,10 @@ import Earnings from './components/Earnings'
 import EconomicEvents from './components/EconomicEvents'
 import IPOs from './components/IPOs'
 import MarketIndicators from './components/MarketIndicators'
+import OpenOptions from './components/OpenOptions'
 import Navbar from './components/Navbar'
 import apiClient from './api'
+import { TradesProvider } from './context/TradesContext'
 
 const theme = createTheme({
   primaryColor: 'blue',
@@ -80,11 +82,13 @@ function App() {
           >
             <Navbar user={user} onLogout={handleLogout} />
             <AppShell.Main>
+                  <TradesProvider>
                   <Routes>
                     <Route path="/" element={<Dashboard user={user} />} />
                     <Route path="/trades" element={<TradingNotes />} />
                     <Route path="/statistics" element={<Statistics />} />
                     <Route path="/calendar" element={<Calendar />} />
+                    <Route path="/options" element={<OpenOptions />} />
                     <Route path="/ai-analysis" element={<AIAnalysis user={user} />} />
                     <Route path="/tradingview-mcp" element={<TradingViewMCP />} />
                     <Route path="/earnings" element={<Earnings />} />
@@ -94,6 +98,7 @@ function App() {
                     <Route path="/admin" element={<Admin />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
+                  </TradesProvider>
             </AppShell.Main>
           </AppShell>
         ) : (

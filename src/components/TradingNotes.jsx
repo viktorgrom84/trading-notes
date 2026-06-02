@@ -49,14 +49,16 @@ import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { useLocation, useNavigate } from 'react-router-dom'
 import apiClient from '../api'
+import { useTrades } from '../context/TradesContext'
+import { formatCurrency, formatDate, getProfitColor, toInputDate } from '../utils/format'
+import { tradeProfit } from '../utils/tradeProfit'
 
 const TradingNotes = () => {
   const location = useLocation()
   const navigate = useNavigate()
-  const [trades, setTrades] = useState([])
+  const { trades, loading, refresh } = useTrades()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
-  const [loading, setLoading] = useState(true)
   const [opened, { open, close }] = useDisclosure(false)
   const [editingTrade, setEditingTrade] = useState(null)
   const [tradeMode, setTradeMode] = useState('regular') // 'regular' | 'option' | 'profit'
@@ -110,10 +112,6 @@ const TradingNotes = () => {
     },
   })
 
-  useEffect(() => {
-    loadTrades()
-  }, [])
-
   // Auto-populate Notes when option fields change
   const autoNoteRef = useRef('')
   useEffect(() => {
@@ -164,23 +162,6 @@ const TradingNotes = () => {
       navigate('/trades', { replace: true, state: {} })
     }
   }, [location.state?.openTradeId, loading, trades])
-
-  const loadTrades = async () => {
-    try {
-      setLoading(true)
-      const trades = await apiClient.getTrades()
-      setTrades(trades)
-    } catch (error) {
-      console.error('Error loading trades:', error)
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to load trades',
-        color: 'red',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSubmit = async (values) => {
     try {
@@ -241,7 +222,7 @@ const TradingNotes = () => {
         })
       }
 
-      await loadTrades()
+      await refresh()
       close()
       form.reset()
       setEditingTrade(null)
@@ -266,34 +247,20 @@ const TradingNotes = () => {
     // Seed the auto-note ref with the trade's current notes so that any
     // field change will correctly trigger a regeneration
     autoNoteRef.current = trade.notes || ''
-    
-    const formatDateForInput = (date) => {
-      if (!date) return ''
-      try {
-        const localDate = date.includes('T') ? new Date(date) : new Date(date + 'T12:00:00')
-        if (isNaN(localDate.getTime())) return ''
-        const year = localDate.getFullYear()
-        const month = String(localDate.getMonth() + 1).padStart(2, '0')
-        const day = String(localDate.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-      } catch {
-        return ''
-      }
-    }
-    
+
     if (isOption) {
       form.setValues({
         symbol: trade.symbol,
         contracts: trade.shares,
         buyPrice: trade.buy_price,
         sellPrice: '',
-        buyDate: formatDateForInput(trade.buy_date),
+        buyDate: toInputDate(trade.buy_date),
         sellDate: '',
         notes: trade.notes || '',
         positionType: trade.position_type || 'short',
         optionType: trade.option_type || 'call',
         strikePrice: trade.strike_price || 0,
-        expirationDate: formatDateForInput(trade.expiration_date),
+        expirationDate: toInputDate(trade.expiration_date),
         avgPrice: trade.avg_price !== null && trade.avg_price !== undefined ? trade.avg_price : '',
         shares: 0,
         profit: undefined,
@@ -302,7 +269,7 @@ const TradingNotes = () => {
       form.setValues({
         symbol: trade.symbol,
         profit: trade.sell_price || 0,
-        buyDate: formatDateForInput(trade.buy_date),
+        buyDate: toInputDate(trade.buy_date),
         notes: cleanNotes(trade.notes),
         positionType: trade.position_type || 'long',
         shares: 0, buyPrice: 0, sellPrice: '', sellDate: '',
@@ -312,13 +279,13 @@ const TradingNotes = () => {
       form.setValues({
         symbol: trade.symbol,
         profit: undefined,
-        buyDate: formatDateForInput(trade.buy_date),
+        buyDate: toInputDate(trade.buy_date),
         notes: trade.notes || '',
         positionType: trade.position_type || 'long',
         shares: trade.shares,
         buyPrice: trade.buy_price,
         sellPrice: trade.sell_price || '',
-        sellDate: formatDateForInput(trade.sell_date),
+        sellDate: toInputDate(trade.sell_date),
         optionType: 'call', strikePrice: 0, expirationDate: '', contracts: 1,
       })
     }
@@ -334,7 +301,7 @@ const TradingNotes = () => {
         message: 'Trade deleted successfully',
         color: 'green',
       })
-      await loadTrades()
+      await refresh()
     } catch (error) {
       console.error('Error deleting trade:', error)
       notifications.show({
@@ -345,37 +312,6 @@ const TradingNotes = () => {
     }
   }
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
-  // Helper functions
-  const formatDate = (dateString) => {
-    if (!dateString || dateString === null || dateString === undefined) return '-'
-    
-    try {
-      // Parse UTC date from database
-      const utcDate = new Date(dateString)
-      
-      // Check if date is valid
-      if (isNaN(utcDate.getTime())) {
-        return '-'
-      }
-      
-      // Convert to user's local timezone for display
-      return utcDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric'
-      })
-    } catch (error) {
-      return '-'
-    }
-  }
-  
   const isProfitOnlyTrade = (trade) => {
     if (trade.trade_type === 'profit_only') return true
     if (trade.trade_type === 'regular' || trade.trade_type === 'option') return false
@@ -384,32 +320,6 @@ const TradingNotes = () => {
 
   const isOptionTrade = (trade) => trade.trade_type === 'option'
   const isShortTrade = (trade) => trade.position_type === 'short'
-  
-  const getProfit = (trade) => {
-    if (isProfitOnlyTrade(trade)) return trade.sell_price
-
-    if (isOptionTrade(trade)) {
-      if (trade.sell_price === null || trade.sell_price === undefined || !trade.sell_date) return null
-      const premium = parseFloat(trade.buy_price)
-      const closePrice = parseFloat(trade.sell_price)
-      // buy_price and sell_price are already total dollar amounts
-      return isShortTrade(trade)
-        ? premium - closePrice
-        : closePrice - premium
-    }
-    
-    const isShort = isShortTrade(trade)
-    const hasRequiredData = isShort 
-      ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
-      : trade.sell_price && trade.sell_date
-    if (!hasRequiredData) return null
-    return (trade.sell_price - trade.buy_price) * trade.shares
-  }
-
-  const getProfitColor = (profit) => {
-    if (profit === null) return 'gray'
-    return profit > 0 ? 'green' : profit < 0 ? 'red' : 'gray'
-  }
 
   const getProfitIcon = (profit) => {
     if (profit > 0) return <IconTrendingUp size={16} />
@@ -488,7 +398,7 @@ const TradingNotes = () => {
   }
 
   const rows = paginatedTrades.map((trade) => {
-    const profit = getProfit(trade)
+    const profit = tradeProfit(trade)
     const status = getStatus(trade)
     const isProfitOnly = isProfitOnlyTrade(trade)
     const isOption = isOptionTrade(trade)
@@ -514,7 +424,7 @@ const TradingNotes = () => {
                 <Text fw={600}>{trade.symbol}</Text>
                 {isOption && (
                   <Text size="xs" c="dimmed">
-                    {trade.option_type?.toUpperCase()} ${parseFloat(trade.strike_price || 0).toFixed(0)} · {formatDate(trade.expiration_date)}{trade.avg_price ? ` · Avg $${parseFloat(trade.avg_price).toFixed(2)}` : ''}
+                    {trade.option_type?.toUpperCase()} ${parseFloat(trade.strike_price || 0).toFixed(2)} · {formatDate(trade.expiration_date)}{trade.avg_price ? ` · Avg $${parseFloat(trade.avg_price).toFixed(2)}` : ''}
                   </Text>
                 )}
               </div>

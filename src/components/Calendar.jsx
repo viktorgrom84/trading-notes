@@ -31,6 +31,9 @@ import { notifications } from '@mantine/notifications'
 import { useDisclosure } from '@mantine/hooks'
 import { useForm } from '@mantine/form'
 import apiClient from '../api'
+import { useTrades } from '../context/TradesContext'
+import { formatCurrency, getLocalDateString, getProfitColor } from '../utils/format'
+import { tradeProfit } from '../utils/tradeProfit'
 
 const getTradeTypeLabel = (trade) => {
   if (trade.trade_type === 'option') {
@@ -50,14 +53,16 @@ const getTradeTypeBadgeColor = (trade) => {
 
 const fmtDate = (raw) => {
   if (!raw) return ''
-  const d = raw.includes('T') ? new Date(raw) : new Date(raw + 'T12:00:00')
+  // Always parse via local noon to avoid UTC-midnight rollback (see format.js TIMEZONE RULE)
+  const datePart = String(raw).slice(0, 10)
+  const d = new Date(datePart + 'T12:00:00')
+  if (isNaN(d.getTime())) return ''
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 const Calendar = () => {
   const navigate = useNavigate()
-  const [trades, setTrades] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { trades, loading, refresh } = useTrades()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [tradeMode, setTradeMode] = useState('regular')
   const [opened, { open, close }] = useDisclosure(false)
@@ -154,7 +159,7 @@ const Calendar = () => {
         message: 'Trade added successfully',
         color: 'green',
       })
-      await loadTrades()
+      await refresh()
       close()
       form.reset()
     } catch (error) {
@@ -166,10 +171,6 @@ const Calendar = () => {
       })
     }
   }
-
-  useEffect(() => {
-    loadTrades()
-  }, [])
 
   // Auto-populate Notes when option fields change
   const autoNoteRef = useRef('')
@@ -208,58 +209,10 @@ const Calendar = () => {
     }
   }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType, form.values.buyDate])
 
-  const loadTrades = async () => {
-    try {
-      setLoading(true)
-      const data = await apiClient.getTrades()
-      setTrades(data)
-    } catch (error) {
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to load trades',
-        color: 'red',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
-  const getProfitColor = (profit) => {
-    if (profit === null) return 'gray'
-    return profit > 0 ? 'green' : profit < 0 ? 'red' : 'gray'
-  }
-
   const getProfitIcon = (profit) => {
     if (profit > 0) return <IconTrendingUp size={16} />
     if (profit < 0) return <IconTrendingDown size={16} />
     return <IconMinus size={16} />
-  }
-
-  const calculateProfit = (trade) => {
-    if (trade.trade_type === 'profit_only') {
-      return parseFloat(trade.sell_price)
-    }
-
-    if (trade.trade_type === 'option') {
-      const isShort = trade.position_type === 'short'
-      const premium = parseFloat(trade.buy_price)
-      // buy_price is the total premium collected/paid
-      return isShort ? premium : -premium
-    }
-
-    const isShort = trade.position_type === 'short'
-    const hasRequiredData = isShort
-      ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
-      : trade.sell_price && trade.sell_date
-    if (!hasRequiredData) return null
-    return (trade.sell_price - trade.buy_price) * trade.shares
   }
 
   // Format currency with K notation for thousands — kept for reference but not used
@@ -290,24 +243,17 @@ const Calendar = () => {
 
       // Options: count premium on the open (buy) date
       if (isOption && buyDate === localDateString) {
-        const profit = calculateProfit(trade)
+        const profit = tradeProfit(trade)
         return total + (profit || 0)
       }
       // All other trades: count P&L on exit (sell) date
       const isExitTrade = sellDate === localDateString
       if (isExitTrade) {
-        const profit = calculateProfit(trade)
+        const profit = tradeProfit(trade)
         return total + (profit || 0)
       }
       return total
     }, 0)
-  }
-
-  // Helper function to get local date string (converts UTC to user's timezone)
-  const getLocalDateString = (date) => {
-    const utcDate = new Date(date)
-    // Convert UTC date to user's local timezone
-    return utcDate.toLocaleDateString('en-CA')
   }
 
   // Calendar day renderer
@@ -488,7 +434,7 @@ const Calendar = () => {
                   <Stack gap="xs">
                     {dayTrades.map((trade, index) => {
                       const isEntry = trade.buy_date && getLocalDateString(trade.buy_date) === localDateString
-                      const profit = calculateProfit(trade)
+                      const profit = tradeProfit(trade)
                       const profitColor = getProfitColor(profit)
                       const isProfitOnly = trade.trade_type === 'profit_only'
                       const isOption = trade.trade_type === 'option'

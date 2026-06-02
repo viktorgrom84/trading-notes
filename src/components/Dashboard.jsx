@@ -35,19 +35,22 @@ import {
   IconEdit
 } from '@tabler/icons-react'
 import apiClient from '../api'
-
-const PERFORMANCE_TRACKER_USER = 'viktorgrom84@gmail.com'
+import { useTrades } from '../context/TradesContext'
+import { checkAdminAccess } from '../utils/admin'
+import { formatCurrency, formatDate, getLocalDateString, getProfitColor } from '../utils/format'
+import { tradeProfit } from '../utils/tradeProfit'
 
 const Dashboard = ({ user }) => {
+  const { trades: allTrades, loading } = useTrades()
+  const recentTrades = allTrades.slice(0, 5)
+  const isPerformanceUser = checkAdminAccess(user)
+
   const [stats, setStats] = useState({
     totalTrades: 0,
     totalProfit: 0,
     winRate: 0,
     avgProfit: 0,
   })
-  const [allTrades, setAllTrades] = useState([])
-  const [recentTrades, setRecentTrades] = useState([])
-  const [loading, setLoading] = useState(true)
   const [performanceTarget, setPerformanceTarget] = useState(0)
   const [currentPerformance, setCurrentPerformance] = useState(0)
   const [showTargetModal, setShowTargetModal] = useState(false)
@@ -55,29 +58,20 @@ const Dashboard = ({ user }) => {
   const [goalInput, setGoalInput] = useState(0)
   const [showGoalModal, setShowGoalModal] = useState(false)
 
-  const loadTradingData = useCallback(async () => {
+  const loadStatistics = useCallback(async () => {
     try {
-      setLoading(true)
-      const [trades, statistics] = await Promise.all([
-        apiClient.getTrades(),
-        apiClient.getStatistics()
-      ])
-      
-      setAllTrades(trades)
-      setRecentTrades(trades.slice(0, 5))
+      const statistics = await apiClient.getStatistics()
       setStats(statistics)
     } catch (error) {
-      console.error('Error loading trading data:', error)
-    } finally {
-      setLoading(false)
+      console.error('Error loading statistics:', error)
     }
   }, [])
 
   useEffect(() => {
-    loadTradingData()
+    loadStatistics()
     loadPerformanceTarget()
     loadYearlyGoal()
-  }, [loadTradingData])
+  }, [loadStatistics])
 
   const loadPerformanceTarget = useCallback(async () => {
     try {
@@ -159,65 +153,10 @@ const Dashboard = ({ user }) => {
     return performanceTarget + stats.totalProfit
   }, [performanceTarget, stats.totalProfit])
 
-  const formatCurrency = useCallback((amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }, [])
-
-  const formatDate = useCallback((dateString) => {
-    if (!dateString) return '-'
-    try {
-      const utcDate = new Date(dateString)
-      if (isNaN(utcDate.getTime())) return '-'
-      return utcDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric'
-      })
-    } catch (error) {
-      return '-'
-    }
-  }, [])
-
-  const getProfitColor = useCallback((profit) => {
-    if (profit > 0) return 'green'
-    if (profit < 0) return 'red'
-    return 'gray'
-  }, [])
-
   const getProfitIcon = useCallback((profit) => {
     if (profit > 0) return <IconArrowUpRight size={16} />
     if (profit < 0) return <IconArrowDownRight size={16} />
     return <IconMinus size={16} />
-  }, [])
-
-  // Same helpers as Calendar.jsx
-  const getLocalDateString = useCallback((date) => {
-    return new Date(date).toLocaleDateString('en-CA') // "YYYY-MM-DD" in local timezone
-  }, [])
-
-  const calculateTradeProfit = useCallback((trade) => {
-    if (trade.trade_type === 'profit_only') return Number(trade.sell_price)
-
-    if (trade.trade_type === 'option') {
-      const isShort = trade.position_type === 'short'
-      const premium = parseFloat(trade.buy_price)
-      if (trade.sell_price != null && trade.sell_date) {
-        const closePrice = parseFloat(trade.sell_price)
-        return isShort ? premium - closePrice : closePrice - premium
-      }
-      // Open option: premium collected (short) or paid (long)
-      return isShort ? premium : -premium
-    }
-
-    const isShort = trade.position_type === 'short'
-    const hasData = isShort
-      ? trade.sell_price && trade.buy_price && trade.sell_date && trade.buy_date
-      : trade.sell_price && trade.sell_date
-    if (!hasData) return null
-    return (trade.sell_price - trade.buy_price) * trade.shares
   }, [])
 
   const { performanceThisMonth, performanceThisYear } = useMemo(() => {
@@ -230,10 +169,9 @@ const Dashboard = ({ user }) => {
 
     allTrades.forEach(trade => {
       const isOption = trade.trade_type === 'option'
-      // Options use buy_date (when premium was collected); other trades use sell_date (when closed)
       const dateStr = isOption ? trade.buy_date : trade.sell_date
       if (!dateStr) return
-      const profit = calculateTradeProfit(trade)
+      const profit = tradeProfit(trade)
       if (profit === null) return
 
       const [y, m] = getLocalDateString(dateStr).split('-').map(Number)
@@ -247,9 +185,9 @@ const Dashboard = ({ user }) => {
       performanceThisMonth: Math.round(month * 100) / 100,
       performanceThisYear: Math.round(year * 100) / 100,
     }
-  }, [allTrades, getLocalDateString, calculateTradeProfit])
+  }, [allTrades])
 
-  const StatCard = useCallback(({ title, value, icon, color = 'blue' }) => (
+  const StatCard = useCallback(({ title, value, icon, color = 'blue' }) => ( // eslint-disable-line react/display-name
     <Card withBorder radius="md" p="xl">
       <Group justify="space-between">
         <div>
@@ -271,11 +209,11 @@ const Dashboard = ({ user }) => {
     return recentTrades.map((trade) => {
       const isProfitOnlyTrade = trade.shares === 1 && trade.buy_price === 0 &&
                                trade.buy_date === trade.sell_date &&
-                               trade.notes && trade.notes.includes('Profit-only trade');
-      const profit = calculateTradeProfit(trade)
+                               trade.notes && trade.notes.includes('Profit-only trade')
+      const profit = tradeProfit(trade)
       return { ...trade, isProfitOnlyTrade, profit }
     })
-  }, [recentTrades, calculateTradeProfit])
+  }, [recentTrades])
 
   if (loading) {
     return (
@@ -304,8 +242,8 @@ const Dashboard = ({ user }) => {
           <Text c="dimmed" size="lg">Track your trading performance and manage your notes</Text>
         </div>
 
-        {/* Performance Tracker — visible only to privileged user */}
-        {user?.username === PERFORMANCE_TRACKER_USER && <Card withBorder radius="md" p="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+        {/* Performance Tracker — visible only to admin */}
+        {isPerformanceUser && <Card withBorder radius="md" p="xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
           <Group justify="space-between" mb="md">
             <div>
               <Title order={3} c="white">Performance Tracker</Title>
@@ -657,8 +595,8 @@ const Dashboard = ({ user }) => {
           </Stack>
         </Modal>
 
-        {/* Performance Target Modal — visible only to privileged user */}
-        {user?.username === PERFORMANCE_TRACKER_USER && <Modal
+        {/* Performance Target Modal — visible only to admin */}
+        {isPerformanceUser && <Modal
           opened={showTargetModal}
           onClose={() => setShowTargetModal(false)}
           title="Set Performance Target"

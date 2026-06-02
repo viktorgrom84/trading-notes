@@ -1,0 +1,43 @@
+---
+description: Run tests before every git push and after any logic change
+alwaysApply: true
+---
+
+# Testing Policy
+
+## Always run tests before pushing
+
+```bash
+npm run test:run   # must exit 0 before any git push
+```
+
+If tests fail, **fix the failures before committing**. Never push with a red test suite.
+
+## When to add or update tests
+
+- Any change to `src/api.js` → update `src/test/api.test.js` or `src/test/core-logic.test.js`
+- Any change to profit / P&L calculation logic → update `tradeProfit` tests in `src/test/core-logic.test.js`
+- Any new utility function → add a test in the closest existing test file
+
+## Test files
+
+| File | What it covers |
+|------|---------------|
+| `src/test/api.test.js` | Basic apiClient methods (CRUD, auth) |
+| `src/test/api.comprehensive.test.js` | Edge cases, error codes, token flows |
+| `src/test/core-logic.test.js` | `isTokenExpired`, 401 event, profit calc, strike display |
+
+## Running tests
+
+```bash
+npm run test:run        # single run (CI / pre-push)
+npm run test            # watch mode (development)
+npm run test:coverage   # coverage report
+```
+
+## Pre-push reminder
+
+Before `git push`, always confirm:
+```
+✓ npm run test:run   → all tests pass
+```

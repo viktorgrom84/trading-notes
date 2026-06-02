@@ -29,7 +29,8 @@ import {
   IconReportMoney,
   IconWorld,
   IconRocket,
-  IconChartLine
+  IconChartLine,
+  IconArrowsExchange,
 } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
 import { checkAdminAccess } from '../utils/admin'
@@ -42,9 +43,10 @@ const Navbar = ({ user, onLogout }) => {
 
   // Standalone nav links
   const standaloneItems = [
-    { path: '/',       label: 'Dashboard',     icon: IconHome },
-    { path: '/trades', label: 'Trading Notes', icon: IconBook },
-    { path: '/calendar', label: 'Calendar',    icon: IconCalendar },
+    { path: '/',        label: 'Dashboard',     icon: IconHome },
+    { path: '/trades',  label: 'Trading Notes', icon: IconBook },
+    { path: '/calendar',label: 'Calendar',      icon: IconCalendar },
+    { path: '/options', label: 'Options',        icon: IconArrowsExchange },
   ]
 
   // "Markets" dropdown
