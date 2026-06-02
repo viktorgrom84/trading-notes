@@ -32,7 +32,7 @@ import { useDisclosure } from '@mantine/hooks'
 import { useForm } from '@mantine/form'
 import apiClient from '../api'
 import { useTrades } from '../context/TradesContext'
-import { formatCurrency, getLocalDateString, getProfitColor } from '../utils/format'
+import { formatCurrency, getLocalDateString, getProfitColor, parseLocalDate } from '../utils/format'
 import { tradeProfit } from '../utils/tradeProfit'
 
 const getTradeTypeLabel = (trade) => {
@@ -257,37 +257,47 @@ const Calendar = () => {
   }
 
   // Calendar day renderer
+  // Mantine v8 passes `date` as a "YYYY-MM-DD" string, NOT a Date object.
+  // Using new Date("YYYY-MM-DD") parses as UTC midnight, rolling back one day
+  // in negative-offset timezones. parseLocalDate parses at local noon instead.
   const renderDay = (date) => {
-    const dateObj = new Date(date)
+    const dateObj = parseLocalDate(date)
+    const day = dateObj.getDay() // 0 = Sun, 6 = Sat
+    const isWeekend = day === 0 || day === 6
     const dailyPnL = getDailyPnL(dateObj)
-    const hasTrades = dailyPnL !== 0
+    const hasTrades = !isWeekend && dailyPnL !== 0
 
     return (
       <Box
-        onClick={() => setSelectedDate(dateObj)}
-        style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        onClick={() => !isWeekend && setSelectedDate(dateObj)}
+        style={{
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: isWeekend ? 'default' : 'pointer',
+          opacity: isWeekend ? 0.2 : 1,
+        }}
       >
         <Text size="sm" ta="center" fw={600} c="dark" mb={hasTrades ? 4 : 0}>
           {dateObj.getDate()}
         </Text>
         {hasTrades && (
           <Box style={{ textAlign: 'center' }}>
-            <Text 
-              size="xs" 
-              fw={700} 
+            <Text
+              size="xs"
+              fw={700}
               c={getProfitColor(dailyPnL)}
-              style={{ 
-                fontSize: '9px',
-                lineHeight: 1.2
-              }}
+              style={{ fontSize: '9px', lineHeight: 1.2 }}
             >
               {formatCurrency(dailyPnL)}
             </Text>
-            <Box 
-              style={{ 
-                width: '100%', 
-                height: '2px', 
-                backgroundColor: getProfitColor(dailyPnL) === 'green' ? 'var(--mantine-color-green-5)' : 
+            <Box
+              style={{
+                width: '100%',
+                height: '2px',
+                backgroundColor: getProfitColor(dailyPnL) === 'green' ? 'var(--mantine-color-green-5)' :
                                getProfitColor(dailyPnL) === 'red' ? 'var(--mantine-color-red-5)' : 'var(--mantine-color-gray-5)',
                 borderRadius: '1px',
                 marginTop: '2px'
@@ -296,6 +306,18 @@ const Calendar = () => {
           </Box>
         )}
       </Box>
+    )
+  }
+
+  // Dim the SA / SU column headers — weekdayFormat receives "YYYY-MM-DD"
+  // of an arbitrary week's day, we check day-of-week to detect weekends.
+  const weekdayFormat = (dateStr) => {
+    const d = parseLocalDate(dateStr)
+    const day = d ? d.getDay() : -1
+    const isWeekend = day === 0 || day === 6
+    const label = d ? d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2).toUpperCase() : ''
+    return (
+      <span style={{ opacity: isWeekend ? 0.25 : 1 }}>{label}</span>
     )
   }
 
@@ -331,8 +353,10 @@ const Calendar = () => {
             <Box style={{ display: 'flex', justifyContent: 'center', padding: '30px 0' }}>
               <MantineCalendar
                 value={selectedDate}
-                onChange={setSelectedDate}
+                onChange={(d) => setSelectedDate(parseLocalDate(d) ?? new Date())}
                 renderDay={renderDay}
+                weekdayFormat={weekdayFormat}
+                firstDayOfWeek={1}
                 size="xl"
                 style={{ 
                   maxWidth: '900px',
