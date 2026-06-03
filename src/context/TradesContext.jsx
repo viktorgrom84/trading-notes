@@ -24,7 +24,7 @@ export function TradesProvider({ children }) {
       const data = await apiClient.getTrades()
       setTrades(data)
     } catch (error) {
-      console.error('Error loading trades:', error)
+      if (process.env.NODE_ENV !== 'test') console.error('Error loading trades:', error)
       notifications.show({ title: 'Error', message: 'Failed to load trades', color: 'red' })
     } finally {
       setLoading(false)

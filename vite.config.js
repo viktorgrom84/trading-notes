@@ -9,6 +9,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],
     include: ['src/test/**/*.test.{js,jsx}'],
+    // Suppress console output — tests assert on thrown errors / return values,
+    // not on console messages. Failures still show via the test reporter.
+    onConsoleLog() { return false },
     coverage: {
       reporter: ['text', 'lcov'],
       include: ['src/**/*.{js,jsx}'],

@@ -74,7 +74,7 @@ class ApiClient {
 
       return data;
     } catch (error) {
-      console.error('API Error:', error);
+      if (process.env.NODE_ENV !== 'test') console.error('API Error:', error);
       throw error;
     }
   }

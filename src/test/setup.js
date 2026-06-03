@@ -1,5 +1,28 @@
 import '@testing-library/jest-dom'
 
+// Keep the terminal clean — tests assert on thrown errors / return values,
+// not on console output. Applied in beforeEach so it survives any
+// vi.restoreAllMocks() calls made by individual test files.
+beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+})
+
+// jsdom's reportException writes directly to process.stderr (bypasses
+// console.error), so filter known test noise at the stream level.
+const _originalStderrWrite = process.stderr.write.bind(process.stderr)
+process.stderr.write = (chunk, ...args) => {
+  const msg = typeof chunk === 'string' ? chunk : chunk?.toString?.() ?? ''
+  if (
+    msg.includes('API Error:') ||
+    msg.includes('Error loading trades:') ||
+    msg.includes('Uncaught [Error') ||
+    msg.includes('Consider adding an error boundary') ||
+    msg.includes('The above error occurred')
+  ) return true
+  return _originalStderrWrite(chunk, ...args)
+}
+
 // Mock fetch for API calls
 global.fetch = vi.fn()
 
