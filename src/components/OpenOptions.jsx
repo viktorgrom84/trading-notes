@@ -26,7 +26,7 @@ function daysToExpiry(expirationDate) {
 
 function expiryBadge(days) {
   if (days === null) return <Badge color="gray"   variant="light">No expiry</Badge>
-  if (days < 0)      return <Badge color="dark"   variant="filled">Expired {Math.abs(days)}d ago</Badge>
+  if (days < 0)      return <Badge color="gray"   variant="filled">Expired {Math.abs(days)}d ago</Badge>
   if (days === 0)    return <Badge color="red"    variant="filled">Expires TODAY</Badge>
   if (days <= 7)     return <Badge color="orange" variant="filled">{days}d left</Badge>
   if (days <= 30)    return <Badge color="yellow" variant="light">{days}d left</Badge>

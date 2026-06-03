@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useComputedColorScheme } from '@mantine/core'
 import { 
   Container, 
   Paper, 
@@ -21,6 +22,7 @@ import apiClient from '../api'
 
 const Login = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true)
+  const colorScheme = useComputedColorScheme('light')
   const [loading, setLoading] = useState(false)
 
   const form = useForm({
@@ -70,7 +72,9 @@ const Login = ({ onLogin }) => {
     <Box 
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: colorScheme === 'dark'
+          ? 'linear-gradient(135deg, #1a1b2e 0%, #2d1b4e 100%)'
+          : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

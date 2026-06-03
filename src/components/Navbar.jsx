@@ -12,7 +12,9 @@ import {
   Menu,
   ThemeIcon,
   UnstyledButton,
-  Divider
+  Divider,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core'
 import { 
   IconTrendingUp, 
@@ -31,13 +33,19 @@ import {
   IconRocket,
   IconChartLine,
   IconArrowsExchange,
+  IconSun,
+  IconMoon,
 } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
+import { useMantineColorScheme, useComputedColorScheme } from '@mantine/core'
 import { checkAdminAccess } from '../utils/admin'
 
 const Navbar = ({ user, onLogout }) => {
   const location = useLocation()
   const [opened, { toggle, close }] = useDisclosure(false)
+  const { setColorScheme } = useMantineColorScheme()
+  const colorScheme = useComputedColorScheme('light')
+  const isDark = colorScheme === 'dark'
 
   const hasAdminAccess = useMemo(() => checkAdminAccess(user), [user?.username])
 
@@ -83,8 +91,8 @@ const Navbar = ({ user, onLogout }) => {
       style={{
         padding: '8px 16px',
         borderRadius: '8px',
-        backgroundColor: isActive(item.path) ? 'var(--mantine-color-blue-0)' : 'transparent',
-        color: isActive(item.path) ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-7)',
+        backgroundColor: isActive(item.path) ? 'var(--mantine-color-blue-light)' : 'transparent',
+        color: isActive(item.path) ? 'var(--mantine-color-blue-text)' : 'var(--mantine-color-dimmed)',
         fontWeight: isActive(item.path) ? 600 : 400,
         transition: 'all 0.2s',
       }}
@@ -106,8 +114,8 @@ const Navbar = ({ user, onLogout }) => {
             style={{
               padding: '8px 12px',
               borderRadius: '8px',
-              backgroundColor: active ? 'var(--mantine-color-blue-0)' : 'transparent',
-              color: active ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-7)',
+              backgroundColor: active ? 'var(--mantine-color-blue-light)' : 'transparent',
+              color: active ? 'var(--mantine-color-blue-text)' : 'var(--mantine-color-dimmed)',
               fontWeight: active ? 600 : 400,
               transition: 'all 0.2s',
             }}
@@ -144,7 +152,7 @@ const Navbar = ({ user, onLogout }) => {
             <ThemeIcon size="lg" variant="gradient" gradient={{ from: 'blue', to: 'purple' }}>
               <IconTrendingUp size={20} />
             </ThemeIcon>
-            <Text fw={700} size="lg" c="dark">
+            <Text fw={700} size="lg">
               TradingNotes
             </Text>
           </Group>
@@ -163,6 +171,17 @@ const Navbar = ({ user, onLogout }) => {
 
           {/* Desktop User Menu */}
           <Group gap="sm" visibleFrom="sm">
+            <Tooltip label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} withArrow>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="lg"
+                onClick={() => setColorScheme(isDark ? 'light' : 'dark')}
+                aria-label="Toggle color scheme"
+              >
+                {isDark ? <IconSun size={20} /> : <IconMoon size={20} />}
+              </ActionIcon>
+            </Tooltip>
             <Menu shadow="md" width={200}>
               <Menu.Target>
                 <Button variant="subtle" leftSection={<IconUser size={16} />} rightSection={<IconChevronDown size={14} />}>
@@ -220,6 +239,15 @@ const Navbar = ({ user, onLogout }) => {
               </Avatar>
               <Text size="sm" fw={500}>{user?.username}</Text>
             </Group>
+            <Button
+              variant="subtle"
+              leftSection={isDark ? <IconSun size={16} /> : <IconMoon size={16} />}
+              onClick={() => setColorScheme(isDark ? 'light' : 'dark')}
+              fullWidth
+              justify="flex-start"
+            >
+              {isDark ? 'Light mode' : 'Dark mode'}
+            </Button>
             <Button
               variant="subtle"
               leftSection={<IconLogout size={16} />}

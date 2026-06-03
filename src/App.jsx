@@ -72,7 +72,7 @@ function App() {
   }
 
   return (
-    <MantineProvider theme={theme}>
+    <MantineProvider theme={theme} defaultColorScheme="light">
       <Notifications />
       <Router>
         {isAuthenticated ? (

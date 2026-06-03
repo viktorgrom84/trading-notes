@@ -280,7 +280,7 @@ const Calendar = () => {
           opacity: isWeekend ? 0.2 : 1,
         }}
       >
-        <Text size="sm" ta="center" fw={600} c="dark" mb={hasTrades ? 4 : 0}>
+        <Text size="sm" ta="center" fw={600} mb={hasTrades ? 4 : 0}>
           {dateObj.getDate()}
         </Text>
         {hasTrades && (
@@ -332,7 +332,7 @@ const Calendar = () => {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2} c="dark">Trading Calendar</Title>
+        <Title order={2}>Trading Calendar</Title>
         <Button 
           leftSection={<IconPlus size={16} />}
           variant="gradient"
@@ -373,7 +373,7 @@ const Calendar = () => {
                   calendarHeaderLevel: {
                     fontSize: '24px',
                     fontWeight: 700,
-                    color: 'var(--mantine-color-blue-7)'
+                    color: 'var(--mantine-color-blue-filled)'
                   },
                   day: {
                     height: '60px',
@@ -383,7 +383,7 @@ const Calendar = () => {
                   weekday: {
                     fontSize: '16px',
                     fontWeight: 600,
-                    color: 'var(--mantine-color-gray-6)',
+                    color: 'var(--mantine-color-dimmed)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px'
                   }
@@ -395,7 +395,7 @@ const Calendar = () => {
         
         <Grid.Col span={{ base: 12, lg: 3 }}>
           <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={3} mb="md" c="dark">
+            <Title order={3} mb="md">
               {selectedDate.toLocaleDateString('en-US', { 
                 weekday: 'long', 
                 year: 'numeric', 
@@ -418,9 +418,9 @@ const Calendar = () => {
                     p="xl" 
                     style={{ 
                       textAlign: 'center',
-                      backgroundColor: 'var(--mantine-color-gray-0)',
+                      backgroundColor: 'var(--mantine-color-default-hover)',
                       borderRadius: '8px',
-                      border: '2px dashed var(--mantine-color-gray-3)'
+                      border: '2px dashed var(--mantine-color-default-border)'
                     }}
                   >
                     <Text size="sm" c="dimmed" fw={500}>
@@ -436,9 +436,9 @@ const Calendar = () => {
               return (
                 <Stack gap="md">
                   {/* Daily P&L Summary */}
-                  <Card p="md" radius="md" withBorder style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
+                  <Card p="md" radius="md" withBorder style={{ backgroundColor: 'var(--mantine-color-default-hover)' }}>
                     <Group justify="space-between" mb="xs">
-                      <Text size="sm" fw={600} c="dark">
+                      <Text size="sm" fw={600}>
                         Daily P&L
                       </Text>
                       <Group gap="xs">
@@ -470,7 +470,7 @@ const Calendar = () => {
                           radius="md"
                           withBorder
                           style={{
-                            backgroundColor: 'var(--mantine-color-gray-0)',
+                            backgroundColor: 'var(--mantine-color-default-hover)',
                             transition: 'all 0.15s ease',
                           }}
                         >
@@ -485,7 +485,7 @@ const Calendar = () => {
                               >
                                 {isEntry ? 'Entry' : 'Exit'}
                               </Badge>
-                              <Text size="sm" fw={700} c="dark" truncate>
+                              <Text size="sm" fw={700} truncate>
                                 {trade.symbol}
                               </Text>
                             </Group>

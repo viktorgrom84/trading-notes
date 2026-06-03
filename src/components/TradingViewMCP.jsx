@@ -311,7 +311,7 @@ const PromptCard = ({ prompt, side, onSave, onReset, defaultContent }) => {
             style={{
               whiteSpace: 'pre-wrap',
               lineHeight: 1.7,
-              color: 'var(--mantine-color-dark-6)',
+              color: 'var(--mantine-color-text)',
             }}
           >
             {prompt.content}
