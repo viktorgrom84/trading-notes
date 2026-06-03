@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Stack, Card, Group, Badge, TextInput,
   Skeleton, Center, ThemeIcon, ActionIcon, Button, Paper,
@@ -64,11 +65,27 @@ const impactLabel = (event) => {
 }
 
 export default function EconomicEvents() {
-  const [date, setDate] = useState(toInputDate(new Date()))
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [date, setDate] = useState(() => searchParams.get('date') ?? toInputDate(new Date()))
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('all') // 'all' | 'us' | 'high'
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
+  const [filter, setFilter] = useState(() =>
+    ['all', 'us', 'high'].includes(searchParams.get('filter')) ? searchParams.get('filter') : 'all'
+  )
+
+  const updateDate = (d) => {
+    setDate(d)
+    setSearchParams(p => { const n = new URLSearchParams(p); n.set('date', d); return n }, { replace: true })
+  }
+  const updateSearch = (q) => {
+    setSearch(q)
+    setSearchParams(p => { const n = new URLSearchParams(p); q ? n.set('q', q) : n.delete('q'); return n }, { replace: true })
+  }
+  const updateFilter = (f) => {
+    setFilter(f)
+    setSearchParams(p => { const n = new URLSearchParams(p); f !== 'all' ? n.set('filter', f) : n.delete('filter'); return n }, { replace: true })
+  }
 
   const fetchEvents = async (d) => {
     setLoading(true)
@@ -90,7 +107,7 @@ export default function EconomicEvents() {
   const shiftDay = (delta) => {
     const d = new Date(date + 'T12:00:00')
     d.setDate(d.getDate() + delta)
-    setDate(toInputDate(d))
+    updateDate(toInputDate(d))
   }
 
   const filtered = useMemo(() => {
@@ -151,13 +168,13 @@ export default function EconomicEvents() {
               <TextInput
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => updateDate(e.target.value)}
                 w={160}
               />
               <ActionIcon variant="default" onClick={() => shiftDay(1)} size="lg">
                 <IconArrowRight size={16} />
               </ActionIcon>
-              <Button variant="subtle" size="sm" onClick={() => setDate(toInputDate(new Date()))}>
+              <Button variant="subtle" size="sm" onClick={() => updateDate(toInputDate(new Date()))}>
                 Today
               </Button>
             </Group>
@@ -187,12 +204,12 @@ export default function EconomicEvents() {
               placeholder="Search event or country..."
               leftSection={<IconSearch size={16} />}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateSearch(e.target.value)}
               w={260}
             />
             <SegmentedControl
               value={filter}
-              onChange={setFilter}
+              onChange={updateFilter}
               data={[
                 { label: 'All', value: 'all' },
                 { label: '🇺🇸 US Only', value: 'us' },

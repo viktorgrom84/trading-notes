@@ -47,18 +47,34 @@ import {
 import { useForm } from '@mantine/form'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import apiClient from '../api'
 import { useTrades } from '../context/TradesContext'
 import { formatCurrency, formatDate, getProfitColor, toInputDate } from '../utils/format'
 import { tradeProfit } from '../utils/tradeProfit'
 
+const VALID_STATUSES = ['all', 'open', 'closed']
+
 const TradingNotes = () => {
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { trades, loading, refresh } = useTrades()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
+
+  // Initialise from URL — ?q= and ?status=
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '')
+  const [filterStatus, setFilterStatus] = useState(() =>
+    VALID_STATUSES.includes(searchParams.get('status')) ? searchParams.get('status') : 'all'
+  )
+
+  const updateSearch = (q) => {
+    setSearchTerm(q)
+    setSearchParams(p => { const n = new URLSearchParams(p); q ? n.set('q', q) : n.delete('q'); return n }, { replace: true })
+  }
+  const updateStatus = (s) => {
+    setFilterStatus(s)
+    setSearchParams(p => { const n = new URLSearchParams(p); s !== 'all' ? n.set('status', s) : n.delete('status'); return n }, { replace: true })
+  }
   const [opened, { open, close }] = useDisclosure(false)
   const [editingTrade, setEditingTrade] = useState(null)
   const [tradeMode, setTradeMode] = useState('regular') // 'regular' | 'option' | 'profit'
@@ -150,18 +166,20 @@ const TradingNotes = () => {
     }
   }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType, form.values.buyDate])
 
-  // When navigated from Calendar with a specific trade ID, open its edit drawer
+  // Deep-link: /trades?id=X (query param) OR location.state.openTradeId (legacy in-session nav)
   useEffect(() => {
-    const targetId = location.state?.openTradeId
+    const targetId = searchParams.get('id')
+      ? parseInt(searchParams.get('id'))
+      : location.state?.openTradeId
     if (!targetId || loading || trades.length === 0) return
     const trade = trades.find(t => t.id === targetId)
     if (trade) {
       handleEdit(trade)
       open()
-      // Clear the state so a back-navigation doesn't re-open it
+      // Remove the query param / state so back-navigation doesn't re-open
       navigate('/trades', { replace: true, state: {} })
     }
-  }, [location.state?.openTradeId, loading, trades])
+  }, [searchParams.get('id'), location.state?.openTradeId, loading, trades])
 
   const handleSubmit = async (values) => {
     try {
@@ -568,7 +586,7 @@ const TradingNotes = () => {
                 placeholder="Search by symbol or notes..."
                 leftSection={<IconSearch size={16} />}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => updateSearch(e.target.value)}
               />
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
@@ -579,9 +597,9 @@ const TradingNotes = () => {
                   </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
-                  <Menu.Item onClick={() => setFilterStatus('all')}>All Trades</Menu.Item>
-                  <Menu.Item onClick={() => setFilterStatus('open')}>Open Positions</Menu.Item>
-                  <Menu.Item onClick={() => setFilterStatus('closed')}>Closed Positions</Menu.Item>
+                  <Menu.Item onClick={() => updateStatus('all')}>All Trades</Menu.Item>
+                  <Menu.Item onClick={() => updateStatus('open')}>Open Positions</Menu.Item>
+                  <Menu.Item onClick={() => updateStatus('closed')}>Closed Positions</Menu.Item>
                 </Menu.Dropdown>
               </Menu>
             </Grid.Col>

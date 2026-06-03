@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   Card, 
   Title, 
@@ -62,8 +62,22 @@ const fmtDate = (raw) => {
 
 const Calendar = () => {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { trades, loading, refresh } = useTrades()
-  const [selectedDate, setSelectedDate] = useState(new Date())
+
+  // Initialise from ?date=YYYY-MM-DD, fall back to today
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const param = searchParams.get('date')
+    return parseLocalDate(param) ?? new Date()
+  })
+
+  // Keep URL in sync when user picks a different day
+  const handleDateChange = (date) => {
+    if (!date) return
+    setSelectedDate(date)
+    setSearchParams({ date: getLocalDateString(date) }, { replace: true })
+  }
+
   const [tradeMode, setTradeMode] = useState('regular')
   const [opened, { open, close }] = useDisclosure(false)
 
@@ -269,7 +283,7 @@ const Calendar = () => {
 
     return (
       <Box
-        onClick={() => !isWeekend && setSelectedDate(dateObj)}
+        onClick={() => !isWeekend && handleDateChange(dateObj)}
         style={{
           height: '100%',
           display: 'flex',
@@ -353,7 +367,7 @@ const Calendar = () => {
             <Box style={{ display: 'flex', justifyContent: 'center', padding: '30px 0' }}>
               <MantineCalendar
                 value={selectedDate}
-                onChange={(d) => setSelectedDate(parseLocalDate(d) ?? new Date())}
+                onChange={(d) => handleDateChange(parseLocalDate(d) ?? new Date())}
                 renderDay={renderDay}
                 weekdayFormat={weekdayFormat}
                 firstDayOfWeek={1}
@@ -498,7 +512,7 @@ const Calendar = () => {
                                   size="xs"
                                   variant="subtle"
                                   color="blue"
-                                  onClick={() => navigate('/trades', { state: { openTradeId: trade.id } })}
+                                  onClick={() => navigate(`/trades?id=${trade.id}`)}
                                 >
                                   <IconArrowUpRight size={12} />
                                 </ActionIcon>

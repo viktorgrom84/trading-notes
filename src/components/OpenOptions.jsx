@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Card, Table, Badge, Group, Stack,
   ThemeIcon, Center, Skeleton, SimpleGrid, Tooltip, Alert, Tabs, ActionIcon,
@@ -58,7 +58,12 @@ function SummaryCard({ label, value, icon, color = 'blue' }) {
 }
 
 function ExpiryGroup({ expDate, days, options: group, navigate }) {
-  const groupPremium = group.reduce((s, o) => s + (parseFloat(o.buy_price) || 0), 0)
+  const groupPremium   = group.reduce((s, o) => s + (parseFloat(o.buy_price) || 0), 0)
+  const groupMoneyInPlay = group.reduce((s, o) => {
+    const avg       = parseFloat(o.avg_price)
+    const contracts = parseInt(o.shares) || 1
+    return isNaN(avg) ? s : s + avg * contracts * 100
+  }, 0)
   const isUrgent = days !== null && days >= 0 && days <= 7
 
   return (
@@ -76,6 +81,10 @@ function ExpiryGroup({ expDate, days, options: group, navigate }) {
           {expiryBadge(days)}
         </Group>
         <Group gap="xl">
+          <div style={{ textAlign: 'right' }}>
+            <Text size="xs" c="dimmed">Money in play</Text>
+            <Text fw={600}>{formatCurrency(groupMoneyInPlay)}</Text>
+          </div>
           <div style={{ textAlign: 'right' }}>
             <Text size="xs" c="dimmed">Premium collected</Text>
             <Text fw={600} c="green">{formatCurrency(groupPremium)}</Text>
@@ -156,7 +165,7 @@ function ExpiryGroup({ expDate, days, options: group, navigate }) {
                           <ActionIcon
                             variant="subtle"
                             color="blue"
-                            onClick={() => navigate('/trades', { state: { openTradeId: opt.id } })}
+                            onClick={() => navigate(`/trades?id=${opt.id}`)}
                           >
                             <IconExternalLink size={15} />
                           </ActionIcon>
@@ -200,9 +209,20 @@ function groupByExpiry(options) {
 }
 
 // ─── main component ────────────────────────────────────────────────────────────
+const VALID_TABS = ['current', 'future', 'past']
+
 export default function OpenOptions() {
   const { trades, loading } = useTrades()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const activeTab = VALID_TABS.includes(searchParams.get('tab'))
+    ? searchParams.get('tab')
+    : 'current'
+
+  const handleTabChange = (tab) => {
+    setSearchParams({ tab }, { replace: true })
+  }
 
   const { current, future, past, totalPremium } = useMemo(() => {
     const enriched = trades
@@ -281,7 +301,7 @@ export default function OpenOptions() {
             color="blue"
           />
           <SummaryCard
-            label="Total Premium (all open)"
+            label="Total Premium Collected"
             value={formatCurrency(totalPremium)}
             icon={<IconCurrencyDollar size={24} />}
             color="green"
@@ -289,14 +309,14 @@ export default function OpenOptions() {
         </SimpleGrid>
 
         {/* Tabs */}
-        <Tabs defaultValue="current" keepMounted={false}>
+        <Tabs value={activeTab} onChange={handleTabChange} keepMounted={false}>
           <Tabs.List mb="md">
             <Tabs.Tab
               value="current"
               leftSection={<IconClock size={16} />}
               rightSection={
                 current.length > 0
-                  ? <Badge color="orange" variant="filled" size="xs" circle>{current.length}</Badge>
+                  ? <Badge color="orange" variant="filled" size="sm">{current.length}</Badge>
                   : undefined
               }
             >
@@ -307,7 +327,7 @@ export default function OpenOptions() {
               leftSection={<IconCalendarStats size={16} />}
               rightSection={
                 future.length > 0
-                  ? <Badge color="blue" variant="light" size="xs" circle>{future.length}</Badge>
+                  ? <Badge color="blue" variant="light" size="sm">{future.length}</Badge>
                   : undefined
               }
             >
@@ -318,7 +338,7 @@ export default function OpenOptions() {
               leftSection={<IconHistory size={16} />}
               rightSection={
                 past.length > 0
-                  ? <Badge color="gray" variant="light" size="xs" circle>{past.length}</Badge>
+                  ? <Badge color="gray" variant="light" size="sm">{past.length}</Badge>
                   : undefined
               }
             >

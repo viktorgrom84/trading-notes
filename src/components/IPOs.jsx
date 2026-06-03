@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Stack, Card, Group, Badge, TextInput,
   Table, ScrollArea, Skeleton, Center, ThemeIcon, ActionIcon,
@@ -129,12 +130,30 @@ function IPOTable({ rows, search, emptyMessage }) {
   )
 }
 
+const VALID_IPO_TABS = ['upcoming', 'priced', 'withdrawn']
+
 export default function IPOs() {
-  const [month, setMonth] = useState(toMonthParam(new Date()))
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [month, setMonth] = useState(() => searchParams.get('month') ?? toMonthParam(new Date()))
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState('')
-  const [tab, setTab] = useState('upcoming')
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
+  const [tab, setTab] = useState(() =>
+    VALID_IPO_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'upcoming'
+  )
+
+  const updateSearch = (q) => {
+    setSearch(q)
+    setSearchParams(p => { const n = new URLSearchParams(p); q ? n.set('q', q) : n.delete('q'); return n }, { replace: true })
+  }
+  const updateTab = (t) => {
+    setTab(t)
+    setSearchParams(p => { const n = new URLSearchParams(p); t !== 'upcoming' ? n.set('tab', t) : n.delete('tab'); return n }, { replace: true })
+  }
+  const updateMonth = (m) => {
+    setMonth(m)
+    setSearchParams(p => { const n = new URLSearchParams(p); n.set('month', m); return n }, { replace: true })
+  }
 
   const fetchIPOs = async (m) => {
     setLoading(true)
@@ -156,7 +175,7 @@ export default function IPOs() {
   const shiftMonth = (delta) => {
     const [y, m] = month.split('-').map(Number)
     const d = new Date(y, m - 1 + delta, 1)
-    setMonth(toMonthParam(d))
+    updateMonth(toMonthParam(d))
   }
 
   const tabData = {
@@ -219,7 +238,7 @@ export default function IPOs() {
           placeholder="Search symbol or company..."
           leftSection={<IconSearch size={16} />}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => updateSearch(e.target.value)}
           w={280}
         />
 
@@ -229,7 +248,7 @@ export default function IPOs() {
             {[...Array(8)].map((_, i) => <Skeleton key={i} height={52} />)}
           </Stack>
         ) : (
-          <Tabs value={tab} onChange={setTab}>
+          <Tabs value={tab} onChange={updateTab}>
             <Tabs.List mb="md">
               {Object.entries(tabData).map(([key, { label, rows }]) => (
                 <Tabs.Tab

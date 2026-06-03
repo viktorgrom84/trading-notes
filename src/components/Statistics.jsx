@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { 
   Container, 
   Grid, 
@@ -44,12 +45,30 @@ const TIME_RANGES = [
   { label: 'All', value: 'all'     },
 ]
 
+const VALID_SORT_COLS = ['symbol', 'count', 'profit', 'avg']
+const VALID_DIRS      = ['asc', 'desc']
+const VALID_RANGES    = TIME_RANGES.map(r => r.value)
+
 const Statistics = () => {
   const { trades, loading } = useTrades()
-  const [timeRange, setTimeRange] = useState('6months')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Initialise all filter/sort state from URL
+  const [timeRange, setTimeRange] = useState(() =>
+    VALID_RANGES.includes(searchParams.get('range')) ? searchParams.get('range') : '6months'
+  )
   const [chartType, setChartType] = useState('line')
-  const [sortCol, setSortCol]     = useState('profit')   // 'symbol' | 'count' | 'profit' | 'avg'
-  const [sortDir, setSortDir]     = useState('desc')
+  const [sortCol, setSortCol] = useState(() =>
+    VALID_SORT_COLS.includes(searchParams.get('sort')) ? searchParams.get('sort') : 'profit'
+  )
+  const [sortDir, setSortDir] = useState(() =>
+    VALID_DIRS.includes(searchParams.get('dir')) ? searchParams.get('dir') : 'desc'
+  )
+
+  const updateRange = (range) => {
+    setTimeRange(range)
+    setSearchParams(p => { const n = new URLSearchParams(p); n.set('range', range); return n }, { replace: true })
+  }
 
   const getFilteredTrades = () => {
     const now = new Date()
@@ -185,8 +204,16 @@ const Statistics = () => {
   }
 
   const toggleSort = (col) => {
-    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir('desc') }
+    const newDir = sortCol === col ? (sortDir === 'asc' ? 'desc' : 'asc') : 'desc'
+    const newCol = col
+    setSortCol(newCol)
+    setSortDir(newDir)
+    setSearchParams(p => {
+      const n = new URLSearchParams(p)
+      n.set('sort', newCol)
+      n.set('dir', newDir)
+      return n
+    }, { replace: true })
   }
 
   const SortIcon = ({ col }) => {
@@ -267,7 +294,7 @@ const Statistics = () => {
             <Text fw={500}>Time Range</Text>
             <SegmentedControl
               value={timeRange}
-              onChange={setTimeRange}
+              onChange={updateRange}
               data={TIME_RANGES}
             />
           </Group>

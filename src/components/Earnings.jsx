@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Stack, Card, Group, Badge, TextInput,
   Table, ScrollArea, Skeleton, Center, ThemeIcon, ActionIcon,
@@ -36,11 +37,28 @@ const formatMarketCap = (mcStr) => {
 }
 
 export default function Earnings() {
-  const [date, setDate] = useState(toInputDate(new Date()))
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [date, setDate] = useState(() => searchParams.get('date') ?? toInputDate(new Date()))
   const [earnings, setEarnings] = useState([])
   const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState('')
-  const [timeFilter, setTimeFilter] = useState('all')
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
+  const [timeFilter, setTimeFilter] = useState(() =>
+    ['all', 'bmo', 'amc', 'unknown'].includes(searchParams.get('time'))
+      ? searchParams.get('time') : 'all'
+  )
+
+  const updateSearch = (q) => {
+    setSearch(q)
+    setSearchParams(p => { const n = new URLSearchParams(p); q ? n.set('q', q) : n.delete('q'); return n }, { replace: true })
+  }
+  const updateTimeFilter = (t) => {
+    setTimeFilter(t)
+    setSearchParams(p => { const n = new URLSearchParams(p); t !== 'all' ? n.set('time', t) : n.delete('time'); return n }, { replace: true })
+  }
+  const updateDate = (d) => {
+    setDate(d)
+    setSearchParams(p => { const n = new URLSearchParams(p); n.set('date', d); return n }, { replace: true })
+  }
 
   const fetchEarnings = async (d) => {
     setLoading(true)
@@ -62,7 +80,7 @@ export default function Earnings() {
   const shiftDay = (delta) => {
     const d = new Date(date + 'T12:00:00')
     d.setDate(d.getDate() + delta)
-    setDate(toInputDate(d))
+    updateDate(toInputDate(d))
   }
 
   const filtered = useMemo(() => {
@@ -107,13 +125,13 @@ export default function Earnings() {
               <TextInput
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => updateDate(e.target.value)}
                 w={160}
               />
               <ActionIcon variant="default" onClick={() => shiftDay(1)} size="lg">
                 <IconArrowRight size={16} />
               </ActionIcon>
-              <Button variant="subtle" size="sm" onClick={() => setDate(toInputDate(new Date()))}>
+              <Button variant="subtle" size="sm" onClick={() => updateDate(toInputDate(new Date()))}>
                 Today
               </Button>
             </Group>
@@ -146,12 +164,12 @@ export default function Earnings() {
               placeholder="Search symbol or company..."
               leftSection={<IconSearch size={16} />}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateSearch(e.target.value)}
               w={260}
             />
             <SegmentedControl
               value={timeFilter}
-              onChange={setTimeFilter}
+              onChange={updateTimeFilter}
               data={[
                 { label: 'All', value: 'all' },
                 { label: 'Pre-Market', value: 'pre' },
