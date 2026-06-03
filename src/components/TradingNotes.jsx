@@ -166,7 +166,7 @@ const TradingNotes = () => {
     }
   }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType, form.values.buyDate])
 
-  // Deep-link: /trades?id=X (query param) OR location.state.openTradeId (legacy in-session nav)
+  // Deep-link: /trades?id=X opens edit modal
   useEffect(() => {
     const targetId = searchParams.get('id')
       ? parseInt(searchParams.get('id'))
@@ -176,10 +176,30 @@ const TradingNotes = () => {
     if (trade) {
       handleEdit(trade)
       open()
-      // Remove the query param / state so back-navigation doesn't re-open
       navigate('/trades', { replace: true, state: {} })
     }
   }, [searchParams.get('id'), location.state?.openTradeId, loading, trades])
+
+  // Pre-fill new profit-only form from assignment: /trades?prefill=profit_only&symbol=X&profit=Y&date=D
+  useEffect(() => {
+    if (searchParams.get('prefill') !== 'profit_only') return
+    const symbol = searchParams.get('symbol') ?? ''
+    const profit = parseFloat(searchParams.get('profit') ?? '0')
+    const date   = searchParams.get('date') ?? ''
+    setTradeMode('profit')
+    setEditingTrade(null)
+    form.setValues({
+      symbol,
+      profit: isNaN(profit) ? 0 : profit,
+      buyDate: date,
+      // reset everything else
+      shares: 0, buyPrice: 0, sellPrice: '', sellDate: '', notes: '',
+      positionType: 'long', optionType: 'call', strikePrice: 0,
+      expirationDate: '', contracts: 1, avgPrice: '',
+    })
+    open()
+    navigate('/trades', { replace: true, state: {} })
+  }, [searchParams.get('prefill')])
 
   const handleSubmit = async (values) => {
     try {
@@ -271,9 +291,9 @@ const TradingNotes = () => {
         symbol: trade.symbol,
         contracts: trade.shares,
         buyPrice: trade.buy_price,
-        sellPrice: '',
+        sellPrice: trade.sell_price ?? '',
         buyDate: toInputDate(trade.buy_date),
-        sellDate: '',
+        sellDate: toInputDate(trade.sell_date) ?? '',
         notes: trade.notes || '',
         positionType: trade.position_type || 'short',
         optionType: trade.option_type || 'call',
@@ -854,6 +874,24 @@ const TradingNotes = () => {
                       label="Open Date"
                       type="date"
                       {...form.getInputProps('buyDate')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <NumberInput
+                      label="Close Price (optional)"
+                      placeholder="0.00"
+                      min={0}
+                      decimalScale={2}
+                      prefix="$"
+                      {...form.getInputProps('sellPrice')}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <TextInput
+                      label="Close Date (optional)"
+                      description="Leave blank to keep as open position."
+                      type="date"
+                      {...form.getInputProps('sellDate')}
                     />
                   </Grid.Col>
                 </Grid>

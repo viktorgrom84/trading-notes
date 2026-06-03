@@ -61,7 +61,7 @@ function SummaryCard({ label, value, icon, color = 'blue' }) {
 }
 
 // ─── Assignment confirmation modal ────────────────────────────────────────────
-function AssignmentModal({ opt, onConfirm, onClose, loading }) {
+function AssignmentModal({ opt, onConfirm, onClose }) {
   const strike         = parseFloat(opt.strike_price)
   const contracts      = parseInt(opt.shares) || 1
   const premium        = parseFloat(opt.buy_price) || 0
@@ -105,14 +105,14 @@ function AssignmentModal({ opt, onConfirm, onClose, loading }) {
 
         <Alert color="blue" variant="light">
           <Text size="sm">
-            This will close the option trade (sell price = $0).
-            Remember to also record the stock sale at <strong>${strike.toFixed(2)}</strong> in Trading Notes.
+            The option row will turn <strong>green</strong> to mark it as assigned.
+            You'll be taken to Trading Notes with a profit-only entry pre-filled for the stock gain/loss of <strong>{formatCurrency(profitIfAssigned ?? 0)}</strong>.
           </Text>
         </Alert>
 
         <Group justify="flex-end" mt="xs">
-          <Button variant="default" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button color="orange" onClick={onConfirm} loading={loading} leftSection={<IconCheck size={16} />}>
+          <Button variant="default" onClick={onClose}>Cancel</Button>
+          <Button color="orange" onClick={onConfirm} leftSection={<IconCheck size={16} />}>
             Confirm Assignment
           </Button>
         </Group>
@@ -121,7 +121,7 @@ function AssignmentModal({ opt, onConfirm, onClose, loading }) {
   )
 }
 
-function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLoading, onAssign }) {
+function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLoading, onAssign, assignedIds }) {
   const groupPremium   = group.reduce((s, o) => s + (parseFloat(o.buy_price) || 0), 0)
   const groupMoneyInPlay = group.reduce((s, o) => {
     const avg       = parseFloat(o.avg_price)
@@ -195,7 +195,12 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
         </Table.Thead>
         <Table.Tbody>
           {group.map(opt => (
-            <Table.Tr key={opt.id}>
+            <Table.Tr
+              key={opt.id}
+              style={assignedIds?.has(opt.id)
+                ? { backgroundColor: 'rgba(34, 197, 94, 0.15)' }
+                : undefined}
+            >
               <Table.Td><Text fw={700}>{opt.symbol}</Text></Table.Td>
               <Table.Td>
                 <Badge
@@ -264,7 +269,9 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
                       </Table.Td>
                       <Table.Td>
                         <Group gap={4} wrap="nowrap">
-                          {opt.option_type === 'call' && (
+                          {assignedIds?.has(opt.id) ? (
+                            <Badge color="green" variant="light" size="sm">Assigned</Badge>
+                          ) : opt.option_type === 'call' ? (
                             <Tooltip label="Mark as Assigned — shares called away at strike" withArrow>
                               <ActionIcon
                                 variant="light"
@@ -274,7 +281,7 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
                                 <IconCheck size={15} />
                               </ActionIcon>
                             </Tooltip>
-                          )}
+                          ) : null}
                           <Tooltip label="Open trade" withArrow>
                             <ActionIcon
                               variant="subtle"
@@ -330,12 +337,17 @@ export default function OpenOptions() {
   const { trades, loading, refresh } = useTrades()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  // quotes: { AAPL: { price: 185.5, iv: 35 }, ... }
+  // quotes: { AAPL: { price: 185.5, hv: 35 }, ... }
   const [quotes, setQuotes]               = useState({})
   const [quotesLoading, setQuotesLoading] = useState(false)
-  // assignment modal
-  const [assignTarget, setAssignTarget]   = useState(null) // the option being assigned
-  const [assigning, setAssigning]         = useState(false)
+  // assignment — stored in localStorage so it survives navigation
+  const [assignTarget, setAssignTarget] = useState(null)
+  const [assignedIds, setAssignedIds]   = useState(() => {
+    try {
+      const saved = localStorage.getItem('assignedOptionIds')
+      return saved ? new Set(JSON.parse(saved)) : new Set()
+    } catch { return new Set() }
+  })
 
   const activeTab = VALID_TABS.includes(searchParams.get('tab'))
     ? searchParams.get('tab')
@@ -372,35 +384,16 @@ export default function OpenOptions() {
   }, [loading, trades])
 
   // ── assignment ────────────────────────────────────────────────────────────
-  const handleAssign = async (opt) => {
-    setAssigning(true)
-    try {
-      const today = getLocalDateString(new Date())
-      const note  = [opt.notes, `Assigned at $${parseFloat(opt.strike_price).toFixed(2)} on ${today}`]
-        .filter(Boolean).join('\n')
-      await apiClient.updateTrade(opt.id, {
-        symbol:         opt.symbol,
-        contracts:      opt.shares,
-        buyPrice:       opt.buy_price,
-        buyDate:        String(opt.buy_date).slice(0, 10),
-        sellPrice:      '0',
-        sellDate:       today,
-        notes:          note,
-        positionType:   opt.position_type || 'short',
-        tradeType:      'option',
-        optionType:     opt.option_type,
-        strikePrice:    opt.strike_price,
-        expirationDate: String(opt.expiration_date).slice(0, 10),
-        avgPrice:       opt.avg_price,
-      })
-      notifications.show({ title: 'Assigned!', message: `${opt.symbol} covered call closed at $${parseFloat(opt.strike_price).toFixed(2)}`, color: 'green' })
-      setAssignTarget(null)
-      refresh()
-    } catch (err) {
-      notifications.show({ title: 'Error', message: err.message || 'Failed to mark as assigned', color: 'red' })
-    } finally {
-      setAssigning(false)
-    }
+  // No API call — row turns green locally, then navigates to a pre-filled
+  // profit-only form in Trading Notes so the user can record the stock P&L.
+  const handleAssign = (opt) => {
+    const newSet = new Set([...assignedIds, opt.id])
+    setAssignedIds(newSet)
+    try { localStorage.setItem('assignedOptionIds', JSON.stringify([...newSet])) } catch {}
+    setAssignTarget(null)
+    const today  = getLocalDateString(new Date())
+    const profit = opt.profitIfAssigned ?? 0
+    navigate(`/trades?prefill=profit_only&symbol=${encodeURIComponent(opt.symbol)}&profit=${profit}&date=${today}`)
   }
 
   const { current, future, past, totalPremium } = useMemo(() => {
@@ -513,7 +506,6 @@ export default function OpenOptions() {
             opt={assignTarget}
             onConfirm={() => handleAssign(assignTarget)}
             onClose={() => setAssignTarget(null)}
-            loading={assigning}
           />
         )}
 
@@ -559,7 +551,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="current">
             <Stack gap="lg">
               {current.length > 0
-                ? groupByExpiry(current).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} />)
+                ? groupByExpiry(current).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} assignedIds={assignedIds} />)
                 : <EmptyState message="No options expiring this week" />
               }
             </Stack>
@@ -569,7 +561,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="future">
             <Stack gap="lg">
               {future.length > 0
-                ? groupByExpiry(future).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} />)
+                ? groupByExpiry(future).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} assignedIds={assignedIds} />)
                 : <EmptyState message="No future expirations" />
               }
             </Stack>
@@ -579,7 +571,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="past">
             <Stack gap="lg">
               {past.length > 0
-                ? groupByExpiry(past).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} />)
+                ? groupByExpiry(past).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} assignedIds={assignedIds} />)
                 : <EmptyState message="No past expirations" />
               }
             </Stack>
