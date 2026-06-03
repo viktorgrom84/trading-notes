@@ -16,6 +16,7 @@ import {
   ActionIcon,
   SegmentedControl,
   Table,
+  Tabs,
   UnstyledButton,
 } from '@mantine/core'
 import { 
@@ -45,9 +46,10 @@ const TIME_RANGES = [
   { label: 'All', value: 'all'     },
 ]
 
-const VALID_SORT_COLS = ['symbol', 'count', 'profit', 'avg']
-const VALID_DIRS      = ['asc', 'desc']
-const VALID_RANGES    = TIME_RANGES.map(r => r.value)
+const VALID_SORT_COLS  = ['symbol', 'count', 'profit', 'avg']
+const VALID_DIRS       = ['asc', 'desc']
+const VALID_RANGES     = TIME_RANGES.map(r => r.value)
+const VALID_TABLE_TABS = ['symbol', 'monthly']
 
 const Statistics = () => {
   const { trades, loading } = useTrades()
@@ -64,6 +66,14 @@ const Statistics = () => {
   const [sortDir, setSortDir] = useState(() =>
     VALID_DIRS.includes(searchParams.get('dir')) ? searchParams.get('dir') : 'desc'
   )
+  const [tableTab, setTableTab] = useState(() =>
+    VALID_TABLE_TABS.includes(searchParams.get('table')) ? searchParams.get('table') : 'symbol'
+  )
+
+  const updateTableTab = (tab) => {
+    setTableTab(tab)
+    setSearchParams(p => { const n = new URLSearchParams(p); n.set('table', tab); return n }, { replace: true })
+  }
 
   const updateRange = (range) => {
     setTimeRange(range)
@@ -271,7 +281,7 @@ const Statistics = () => {
   // valueColor: explicit text colour; falls back to green/red for numbers, 'inherit' for strings
   const StatCard = ({ title, value, icon, color = 'blue', valueColor }) => {
     const textColor = valueColor
-      ?? (title === 'Total Trades' ? 'dark' : typeof value === 'number' ? getProfitColor(value) : 'inherit')
+      ?? (title === 'Total Trades' ? undefined : typeof value === 'number' ? getProfitColor(value) : 'inherit')
     const display = title === 'Total Trades'
       ? value
       : typeof value === 'number' ? formatCurrency(value) : value
@@ -473,90 +483,101 @@ const Statistics = () => {
           </Grid.Col>
         </Grid>
 
-        {/* Symbol Performance — sortable */}
-        {symbolData.length > 0 && (
+        {/* Performance tables — tabbed to keep the page compact */}
+        {(symbolData.length > 0 || getMonthlyData().length > 0) && (
           <Card withBorder p="xl">
-            <Title order={3} mb="md">Performance by Symbol</Title>
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  {[
-                    { col: 'symbol', label: 'Symbol' },
-                    { col: 'count',  label: 'Trades'  },
-                    { col: 'profit', label: 'Total Profit' },
-                    { col: 'avg',    label: 'Avg Profit' },
-                  ].map(({ col, label }) => (
-                    <Table.Th key={col} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                      <UnstyledButton onClick={() => toggleSort(col)}>
-                        <Group gap={4} wrap="nowrap">
-                          <Text fw={600} size="sm">{label}</Text>
-                          <SortIcon col={col} />
-                        </Group>
-                      </UnstyledButton>
-                    </Table.Th>
-                  ))}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {symbolData.map((item) => (
-                  <Table.Tr key={item.symbol}>
-                    <Table.Td><Text fw={600}>{item.symbol}</Text></Table.Td>
-                    <Table.Td>{item.count}</Table.Td>
-                    <Table.Td>
-                      <Text c={getProfitColor(item.profit)} fw={500}>
-                        {formatCurrency(item.profit)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text c={getProfitColor(item.avg)}>
-                        {formatCurrency(item.avg)}
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+            <Tabs value={tableTab} onChange={updateTableTab} keepMounted={false}>
+              <Tabs.List mb="md">
+                <Tabs.Tab value="symbol">Performance by Symbol</Tabs.Tab>
+                <Tabs.Tab value="monthly">Monthly Breakdown</Tabs.Tab>
+              </Tabs.List>
+
+              <Tabs.Panel value="symbol">
+                {symbolData.length > 0 ? (
+                  <Table striped highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        {[
+                          { col: 'symbol', label: 'Symbol' },
+                          { col: 'count',  label: 'Trades'  },
+                          { col: 'profit', label: 'Total Profit' },
+                          { col: 'avg',    label: 'Avg Profit' },
+                        ].map(({ col, label }) => (
+                          <Table.Th key={col} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                            <UnstyledButton onClick={() => toggleSort(col)}>
+                              <Group gap={4} wrap="nowrap">
+                                <Text fw={600} size="sm">{label}</Text>
+                                <SortIcon col={col} />
+                              </Group>
+                            </UnstyledButton>
+                          </Table.Th>
+                        ))}
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {symbolData.map((item) => (
+                        <Table.Tr key={item.symbol}>
+                          <Table.Td><Text fw={600}>{item.symbol}</Text></Table.Td>
+                          <Table.Td>{item.count}</Table.Td>
+                          <Table.Td>
+                            <Text c={getProfitColor(item.profit)} fw={500}>
+                              {formatCurrency(item.profit)}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text c={getProfitColor(item.avg)}>
+                              {formatCurrency(item.avg)}
+                            </Text>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                ) : (
+                  <Text c="dimmed" ta="center" py="xl">No completed trades in this time range</Text>
+                )}
+              </Tabs.Panel>
+
+              <Tabs.Panel value="monthly">
+                {(() => {
+                  const monthlyData = getMonthlyData()
+                  return monthlyData.length > 0 ? (
+                    <Table striped highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Month</Table.Th>
+                          <Table.Th>Trades</Table.Th>
+                          <Table.Th>Win Rate</Table.Th>
+                          <Table.Th>Total P&amp;L</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {monthlyData.map(row => (
+                          <Table.Tr key={row.key}>
+                            <Table.Td><Text fw={600}>{row.label}</Text></Table.Td>
+                            <Table.Td>{row.trades}</Table.Td>
+                            <Table.Td>
+                              <Text c={row.winRate >= 60 ? 'green' : row.winRate >= 40 ? 'yellow' : 'red'} fw={500}>
+                                {row.winRate}%
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text fw={700} c={getProfitColor(row.profit)}>
+                                {formatCurrency(row.profit)}
+                              </Text>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  ) : (
+                    <Text c="dimmed" ta="center" py="xl">No completed trades yet</Text>
+                  )
+                })()}
+              </Tabs.Panel>
+            </Tabs>
           </Card>
         )}
-
-        {/* Monthly Breakdown */}
-        {(() => {
-          const monthlyData = getMonthlyData()
-          if (!monthlyData.length) return null
-          return (
-            <Card withBorder p="xl">
-              <Title order={3} mb="md">Monthly Breakdown</Title>
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Month</Table.Th>
-                    <Table.Th>Trades</Table.Th>
-                    <Table.Th>Win Rate</Table.Th>
-                    <Table.Th>Total P&amp;L</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {monthlyData.map(row => (
-                    <Table.Tr key={row.key}>
-                      <Table.Td><Text fw={600}>{row.label}</Text></Table.Td>
-                      <Table.Td>{row.trades}</Table.Td>
-                      <Table.Td>
-                        <Text c={row.winRate >= 60 ? 'green' : row.winRate >= 40 ? 'yellow' : 'red'} fw={500}>
-                          {row.winRate}%
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text fw={700} c={getProfitColor(row.profit)}>
-                          {formatCurrency(row.profit)}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Card>
-          )
-        })()}
 
         {getCompletedTrades().length === 0 && (
           <Card withBorder>
