@@ -3,14 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Card, Table, Badge, Group, Stack,
   ThemeIcon, Center, Skeleton, SimpleGrid, Tooltip, Alert, Tabs, ActionIcon,
+  Modal, Button, Divider,
 } from '@mantine/core'
 import {
   IconChartCandle, IconAlertTriangle, IconCalendarEvent,
   IconCurrencyDollar, IconInfoCircle, IconHistory, IconClock, IconCalendarStats,
-  IconExternalLink, IconRefresh,
+  IconExternalLink, IconRefresh, IconCheck,
 } from '@tabler/icons-react'
+import { notifications } from '@mantine/notifications'
 import { useTrades } from '../context/TradesContext'
-import { formatCurrency, formatDate, getProfitColor } from '../utils/format'
+import { formatCurrency, formatDate, getProfitColor, getLocalDateString } from '../utils/format'
+import apiClient from '../api'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function daysToExpiry(expirationDate) {
@@ -57,7 +60,68 @@ function SummaryCard({ label, value, icon, color = 'blue' }) {
   )
 }
 
-function ExpiryGroup({ expDate, days, options: group, navigate, prices, pricesLoading }) {
+// ─── Assignment confirmation modal ────────────────────────────────────────────
+function AssignmentModal({ opt, onConfirm, onClose, loading }) {
+  const strike         = parseFloat(opt.strike_price)
+  const contracts      = parseInt(opt.shares) || 1
+  const premium        = parseFloat(opt.buy_price) || 0
+  const profitIfAssigned = calcProfitIfAssigned(opt)
+  const totalPL        = profitIfAssigned != null ? premium + profitIfAssigned : null
+
+  return (
+    <Modal
+      opened
+      onClose={onClose}
+      title={<Text fw={700} size="lg">Mark as Assigned — {opt.symbol}</Text>}
+      size="md"
+    >
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          Your <strong>{contracts} contract{contracts > 1 ? 's' : ''}</strong> covered call
+          (strike <strong>${strike.toFixed(2)}</strong>) was assigned — shares called away at the strike price.
+        </Text>
+
+        <Divider />
+
+        <Group justify="space-between">
+          <Text size="sm">Premium kept (full)</Text>
+          <Text fw={600} c="green">{formatCurrency(premium)}</Text>
+        </Group>
+        <Group justify="space-between">
+          <Text size="sm">Stock gain/loss on assignment</Text>
+          {profitIfAssigned != null
+            ? <Text fw={600} c={getProfitColor(profitIfAssigned)}>{formatCurrency(profitIfAssigned)}</Text>
+            : <Text size="sm" c="dimmed">Enter Avg Price to calculate</Text>
+          }
+        </Group>
+        {totalPL != null && (
+          <Group justify="space-between">
+            <Text fw={700}>Total assignment P&L</Text>
+            <Text fw={700} size="lg" c={getProfitColor(totalPL)}>{formatCurrency(totalPL)}</Text>
+          </Group>
+        )}
+
+        <Divider />
+
+        <Alert color="blue" variant="light">
+          <Text size="sm">
+            This will close the option trade (sell price = $0).
+            Remember to also record the stock sale at <strong>${strike.toFixed(2)}</strong> in Trading Notes.
+          </Text>
+        </Alert>
+
+        <Group justify="flex-end" mt="xs">
+          <Button variant="default" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button color="orange" onClick={onConfirm} loading={loading} leftSection={<IconCheck size={16} />}>
+            Confirm Assignment
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
+function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLoading, onAssign }) {
   const groupPremium   = group.reduce((s, o) => s + (parseFloat(o.buy_price) || 0), 0)
   const groupMoneyInPlay = group.reduce((s, o) => {
     const avg       = parseFloat(o.avg_price)
@@ -108,6 +172,14 @@ function ExpiryGroup({ expDate, days, options: group, navigate, prices, pricesLo
               </Group>
             </Table.Th>
             <Table.Th>Current</Table.Th>
+            <Table.Th>
+              <Group gap={4}>
+                30d HV
+                <Tooltip label="30-day Historical Volatility (annualised). Higher = stock moves more. >60% is elevated — usually means more premium available." withArrow>
+                  <IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} />
+                </Tooltip>
+              </Group>
+            </Table.Th>
             <Table.Th>Premium</Table.Th>
             <Table.Th>Opened</Table.Th>
             <Table.Th>
@@ -145,24 +217,33 @@ function ExpiryGroup({ expDate, days, options: group, navigate, prices, pricesLo
                 }
               </Table.Td>
               <Table.Td>
-                {pricesLoading ? (
-                  <Text c="dimmed" size="sm">…</Text>
-                ) : prices[opt.symbol?.toUpperCase()] != null ? (
-                  (() => {
-                    const cur   = prices[opt.symbol.toUpperCase()]
-                    const strike = parseFloat(opt.strike_price)
-                    const itm   = opt.option_type === 'call' ? cur > strike : cur < strike
-                    return (
-                      <Tooltip label={itm ? 'In the money' : 'Out of the money'} withArrow>
-                        <Text fw={600} c={itm ? 'red' : 'green'}>
-                          ${cur.toFixed(2)}
-                        </Text>
-                      </Tooltip>
-                    )
-                  })()
-                ) : (
-                  <Text c="dimmed" size="sm">—</Text>
-                )}
+                {(() => {
+                  const raw    = quotes[opt.symbol?.toUpperCase()]
+                  // Support both old API (plain number) and new API ({ price, hv })
+                  const curPrice = typeof raw === 'object' ? raw?.price : (typeof raw === 'number' ? raw : null)
+                  if (quotesLoading) return <Text c="dimmed" size="sm">…</Text>
+                  if (curPrice == null) return <Text c="dimmed" size="sm">—</Text>
+                  const strike = parseFloat(opt.strike_price)
+                  const itm    = opt.option_type === 'call' ? curPrice > strike : curPrice < strike
+                  return (
+                    <Tooltip label={itm ? 'In the money' : 'Out of the money'} withArrow>
+                      <Text fw={600} c={itm ? 'red' : 'green'}>${curPrice.toFixed(2)}</Text>
+                    </Tooltip>
+                  )
+                })()}
+              </Table.Td>
+              <Table.Td>
+                {(() => {
+                  const q = quotes[opt.symbol?.toUpperCase()]
+                  if (quotesLoading) return <Text c="dimmed" size="sm">…</Text>
+                  if (q?.hv == null) return <Text c="dimmed" size="sm">—</Text>
+                  const color = q.hv >= 60 ? 'green' : q.hv >= 40 ? 'yellow' : 'dimmed'
+                  return (
+                    <Tooltip label={`30d HV: ${q.hv}% — ${q.hv >= 60 ? 'elevated (good for selling premium)' : q.hv >= 40 ? 'moderate' : 'low'}`} withArrow>
+                      <Text fw={500} c={color}>{q.hv}%</Text>
+                    </Tooltip>
+                  )
+                })()}
               </Table.Td>
               <Table.Td>
                 <Text c="green" fw={500}>{formatCurrency(opt.buy_price)}</Text>
@@ -182,15 +263,28 @@ function ExpiryGroup({ expDate, days, options: group, navigate, prices, pricesLo
                         )}
                       </Table.Td>
                       <Table.Td>
-                        <Tooltip label="Open trade" withArrow>
-                          <ActionIcon
-                            variant="subtle"
-                            color="blue"
-                            onClick={() => navigate(`/trades?id=${opt.id}`)}
-                          >
-                            <IconExternalLink size={15} />
-                          </ActionIcon>
-                        </Tooltip>
+                        <Group gap={4} wrap="nowrap">
+                          {opt.option_type === 'call' && (
+                            <Tooltip label="Mark as Assigned — shares called away at strike" withArrow>
+                              <ActionIcon
+                                variant="light"
+                                color="orange"
+                                onClick={() => onAssign(opt)}
+                              >
+                                <IconCheck size={15} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                          <Tooltip label="Open trade" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              color="blue"
+                              onClick={() => navigate(`/trades?id=${opt.id}`)}
+                            >
+                              <IconExternalLink size={15} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
           ))}
@@ -233,11 +327,15 @@ function groupByExpiry(options) {
 const VALID_TABS = ['current', 'future', 'past']
 
 export default function OpenOptions() {
-  const { trades, loading } = useTrades()
+  const { trades, loading, refresh } = useTrades()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [prices, setPrices]         = useState({})   // { AAPL: 192.34, ... }
-  const [pricesLoading, setPricesLoading] = useState(false)
+  // quotes: { AAPL: { price: 185.5, iv: 35 }, ... }
+  const [quotes, setQuotes]               = useState({})
+  const [quotesLoading, setQuotesLoading] = useState(false)
+  // assignment modal
+  const [assignTarget, setAssignTarget]   = useState(null) // the option being assigned
+  const [assigning, setAssigning]         = useState(false)
 
   const activeTab = VALID_TABS.includes(searchParams.get('tab'))
     ? searchParams.get('tab')
@@ -247,18 +345,18 @@ export default function OpenOptions() {
     setSearchParams({ tab }, { replace: true })
   }
 
-  // ── price fetching ────────────────────────────────────────────────────────
-  const fetchPrices = async (symbolList) => {
+  // ── price + IV fetching ───────────────────────────────────────────────────
+  const fetchQuotes = async (symbolList) => {
     if (!symbolList.length) return
-    setPricesLoading(true)
+    setQuotesLoading(true)
     try {
       const res = await fetch(`/api/market-calendar?type=quotes&symbols=${symbolList.join(',')}`)
       if (res.ok) {
         const data = await res.json()
-        setPrices(data.prices ?? {})
+        setQuotes(data.prices ?? {})
       }
     } finally {
-      setPricesLoading(false)
+      setQuotesLoading(false)
     }
   }
 
@@ -270,8 +368,40 @@ export default function OpenOptions() {
         .map(t => t.symbol?.trim().toUpperCase())
         .filter(Boolean)
     )]
-    if (syms.length) fetchPrices(syms)
+    if (syms.length) fetchQuotes(syms)
   }, [loading, trades])
+
+  // ── assignment ────────────────────────────────────────────────────────────
+  const handleAssign = async (opt) => {
+    setAssigning(true)
+    try {
+      const today = getLocalDateString(new Date())
+      const note  = [opt.notes, `Assigned at $${parseFloat(opt.strike_price).toFixed(2)} on ${today}`]
+        .filter(Boolean).join('\n')
+      await apiClient.updateTrade(opt.id, {
+        symbol:         opt.symbol,
+        contracts:      opt.shares,
+        buyPrice:       opt.buy_price,
+        buyDate:        String(opt.buy_date).slice(0, 10),
+        sellPrice:      '0',
+        sellDate:       today,
+        notes:          note,
+        positionType:   opt.position_type || 'short',
+        tradeType:      'option',
+        optionType:     opt.option_type,
+        strikePrice:    opt.strike_price,
+        expirationDate: String(opt.expiration_date).slice(0, 10),
+        avgPrice:       opt.avg_price,
+      })
+      notifications.show({ title: 'Assigned!', message: `${opt.symbol} covered call closed at $${parseFloat(opt.strike_price).toFixed(2)}`, color: 'green' })
+      setAssignTarget(null)
+      refresh()
+    } catch (err) {
+      notifications.show({ title: 'Error', message: err.message || 'Failed to mark as assigned', color: 'red' })
+    } finally {
+      setAssigning(false)
+    }
+  }
 
   const { current, future, past, totalPremium } = useMemo(() => {
     const enriched = trades
@@ -324,11 +454,11 @@ export default function OpenOptions() {
               Track your active covered calls and cash-secured puts
             </Text>
           </div>
-          <Tooltip label="Refresh current prices" withArrow>
+          <Tooltip label="Refresh prices & IV" withArrow>
             <ActionIcon
               variant="subtle"
               size="lg"
-              loading={pricesLoading}
+              loading={quotesLoading}
               onClick={() => {
                 const syms = [...new Set(
                   trades
@@ -336,7 +466,7 @@ export default function OpenOptions() {
                     .map(t => t.symbol?.trim().toUpperCase())
                     .filter(Boolean)
                 )]
-                if (syms.length) fetchPrices(syms)
+                if (syms.length) fetchQuotes(syms)
               }}
             >
               <IconRefresh size={18} />
@@ -376,6 +506,16 @@ export default function OpenOptions() {
             color="green"
           />
         </SimpleGrid>
+
+        {/* Assignment confirmation modal */}
+        {assignTarget && (
+          <AssignmentModal
+            opt={assignTarget}
+            onConfirm={() => handleAssign(assignTarget)}
+            onClose={() => setAssignTarget(null)}
+            loading={assigning}
+          />
+        )}
 
         {/* Tabs */}
         <Tabs value={activeTab} onChange={handleTabChange} keepMounted={false}>
@@ -419,7 +559,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="current">
             <Stack gap="lg">
               {current.length > 0
-                ? groupByExpiry(current).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} prices={prices} pricesLoading={pricesLoading} />)
+                ? groupByExpiry(current).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} />)
                 : <EmptyState message="No options expiring this week" />
               }
             </Stack>
@@ -429,7 +569,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="future">
             <Stack gap="lg">
               {future.length > 0
-                ? groupByExpiry(future).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} prices={prices} pricesLoading={pricesLoading} />)
+                ? groupByExpiry(future).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} />)
                 : <EmptyState message="No future expirations" />
               }
             </Stack>
@@ -439,7 +579,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="past">
             <Stack gap="lg">
               {past.length > 0
-                ? groupByExpiry(past).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} prices={prices} pricesLoading={pricesLoading} />)
+                ? groupByExpiry(past).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} />)
                 : <EmptyState message="No past expirations" />
               }
             </Stack>

@@ -169,6 +169,35 @@ const Statistics = () => {
       })
   }
 
+  // Monthly breakdown — always uses ALL closed trades (not time-range filtered)
+  const getMonthlyData = () => {
+    const closed = trades.filter(isTradeClosed)
+    const map = {}
+    closed.forEach(trade => {
+      const raw = (trade.trade_type === 'option' || trade.trade_type === 'profit_only')
+        ? trade.buy_date
+        : trade.sell_date || trade.buy_date
+      if (!raw) return
+      const d = parseLocalDate(raw)
+      if (!d) return
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if (!map[key]) map[key] = { profit: 0, trades: 0, wins: 0 }
+      const p = tradeProfit(trade) ?? 0
+      map[key].profit += p
+      map[key].trades += 1
+      if (p > 0) map[key].wins += 1
+    })
+    return Object.entries(map)
+      .sort(([a], [b]) => b.localeCompare(a)) // newest first
+      .map(([key, { profit, trades, wins }]) => ({
+        key,
+        label: new Date(key + '-15T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        profit,
+        trades,
+        winRate: trades > 0 ? Math.round((wins / trades) * 100) : 0,
+      }))
+  }
+
   const getSymbolData = () => {
     const completedTrades = getCompletedTrades()
     const symbolMap = {}
@@ -489,6 +518,45 @@ const Statistics = () => {
             </Table>
           </Card>
         )}
+
+        {/* Monthly Breakdown */}
+        {(() => {
+          const monthlyData = getMonthlyData()
+          if (!monthlyData.length) return null
+          return (
+            <Card withBorder p="xl">
+              <Title order={3} mb="md">Monthly Breakdown</Title>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Month</Table.Th>
+                    <Table.Th>Trades</Table.Th>
+                    <Table.Th>Win Rate</Table.Th>
+                    <Table.Th>Total P&amp;L</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {monthlyData.map(row => (
+                    <Table.Tr key={row.key}>
+                      <Table.Td><Text fw={600}>{row.label}</Text></Table.Td>
+                      <Table.Td>{row.trades}</Table.Td>
+                      <Table.Td>
+                        <Text c={row.winRate >= 60 ? 'green' : row.winRate >= 40 ? 'yellow' : 'red'} fw={500}>
+                          {row.winRate}%
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text fw={700} c={getProfitColor(row.profit)}>
+                          {formatCurrency(row.profit)}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Card>
+          )
+        })()}
 
         {getCompletedTrades().length === 0 && (
           <Card withBorder>

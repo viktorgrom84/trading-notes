@@ -58,16 +58,16 @@ async function handleIPOs(req, res) {
   })
 }
 
-// Batch-fetch current prices from Yahoo Finance (unofficial crumb-free endpoint)
+// Batch-fetch current prices + 30-day historical volatility from Yahoo Finance
 async function handleQuotes(req, res) {
   const symbols = (req.query.symbols || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
   if (!symbols.length) return res.status(400).json({ message: 'symbols query param required (comma-separated)' })
 
-  // Yahoo Finance v8 accepts a single symbol per call; run them in parallel
+  // v8/finance/chart with 1-month daily data — no crumb required
   const results = await Promise.allSettled(
     symbols.map(sym =>
       fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`,
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1mo`,
         { headers: HEADERS }
       ).then(r => r.json())
     )
@@ -77,14 +77,32 @@ async function handleQuotes(req, res) {
   for (let i = 0; i < symbols.length; i++) {
     const r = results[i]
     if (r.status === 'fulfilled') {
-      const meta = r.value?.chart?.result?.[0]?.meta
-      prices[symbols[i]] = meta?.regularMarketPrice ?? meta?.previousClose ?? null
+      const result = r.value?.chart?.result?.[0]
+      if (result) {
+        const meta   = result.meta ?? {}
+        const price  = meta.regularMarketPrice ?? meta.previousClose ?? null
+        // Calculate annualised 30-day historical volatility from daily log-returns
+        const rawCloses = (result.indicators?.quote?.[0]?.close ?? []).filter(c => c != null && c > 0)
+        let hv = null
+        if (rawCloses.length >= 2) {
+          const returns = []
+          for (let j = 1; j < rawCloses.length; j++) {
+            returns.push(Math.log(rawCloses[j] / rawCloses[j - 1]))
+          }
+          const mean = returns.reduce((s, r) => s + r, 0) / returns.length
+          const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length
+          hv = Math.round(Math.sqrt(variance) * Math.sqrt(252) * 100)
+        }
+        prices[symbols[i]] = { price, hv }
+      } else {
+        prices[symbols[i]] = { price: null, hv: null }
+      }
     } else {
-      prices[symbols[i]] = null
+      prices[symbols[i]] = { price: null, hv: null }
     }
   }
 
-  // Short cache — stale price is fine, but don't hammer Yahoo on every keystroke
+  // Short cache — stale price is fine, don't hammer Yahoo
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
   res.json({ prices })
 }

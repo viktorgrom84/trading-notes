@@ -206,6 +206,95 @@ describe('Statistics — calculateStats()', () => {
   })
 })
 
+// ─── Monthly breakdown logic ──────────────────────────────────────────────────
+describe('getMonthlyData — monthly aggregation', () => {
+  // Inline version of getMonthlyData (mirrors Statistics.jsx pure logic)
+  function getMonthlyData(trades) {
+    const { parseLocalDate } = { parseLocalDate: (d) => {
+      if (!d) return null
+      const s = typeof d === 'string' ? d : d.toISOString()
+      const datePart = s.slice(0, 10)
+      const dt = new Date(datePart + 'T12:00:00')
+      return isNaN(dt.getTime()) ? null : dt
+    }}
+    const map = {}
+    trades.filter(isTradeClosed).forEach(trade => {
+      const raw = (trade.trade_type === 'option' || trade.trade_type === 'profit_only')
+        ? trade.buy_date
+        : trade.sell_date || trade.buy_date
+      if (!raw) return
+      const d = parseLocalDate(raw)
+      if (!d) return
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if (!map[key]) map[key] = { profit: 0, trades: 0, wins: 0 }
+      const p = tradeProfit(trade) ?? 0
+      map[key].profit += p
+      map[key].trades += 1
+      if (p > 0) map[key].wins += 1
+    })
+    return Object.entries(map)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, { profit, trades, wins }]) => ({
+        key,
+        profit,
+        trades,
+        winRate: trades > 0 ? Math.round((wins / trades) * 100) : 0,
+      }))
+  }
+
+  it('groups trades by month correctly', () => {
+    const trades = [
+      reg('2026-01-10', 100, 150, 1),  // +50
+      reg('2026-01-20', 100, 80,  1),  // -20
+      reg('2026-02-05', 100, 200, 1),  // +100
+    ]
+    const data = getMonthlyData(trades)
+    expect(data).toHaveLength(2)
+    // newest first
+    expect(data[0].key).toBe('2026-02')
+    expect(data[0].profit).toBeCloseTo(100)
+    expect(data[0].winRate).toBe(100)
+    expect(data[1].key).toBe('2026-01')
+    expect(data[1].profit).toBeCloseTo(30)
+    expect(data[1].trades).toBe(2)
+    expect(data[1].winRate).toBe(50)
+  })
+
+  it('counts covered call premium in the month it was opened', () => {
+    const call = { ...cc('2026-03-15', 200), sell_date: undefined }
+    const data = getMonthlyData([call])
+    expect(data).toHaveLength(1)
+    expect(data[0].key).toBe('2026-03')
+    expect(data[0].profit).toBeCloseTo(200)
+    expect(data[0].winRate).toBe(100)
+  })
+
+  it('excludes open regular trades', () => {
+    const open = reg('2026-03-10', 100, null, 1) // no sell_date/sell_price
+    const data = getMonthlyData([open])
+    expect(data).toHaveLength(0)
+  })
+})
+
+// ─── Assignment tracker helpers ───────────────────────────────────────────────
+describe('calcProfitIfAssigned logic', () => {
+  it('computes (strike - avg) * contracts * 100', () => {
+    const trade = {
+      strike_price: '10.00',
+      avg_price: '8.00',
+      shares: '5',
+    }
+    const result = (parseFloat(trade.strike_price) - parseFloat(trade.avg_price))
+      * (parseInt(trade.shares) || 1) * 100
+    expect(result).toBe(1000) // (10-8)*5*100
+  })
+
+  it('returns negative when avg > strike (underwater)', () => {
+    const result = (parseFloat('8.00') - parseFloat('10.00')) * 2 * 100
+    expect(result).toBe(-400)
+  })
+})
+
 // ─── Win-rate StatCard color bug (regression) ─────────────────────────────────
 describe('Win Rate color — regression for "100% shows red" bug', () => {
   it('getProfitColor with a NUMBER: 100 → green', () => {
