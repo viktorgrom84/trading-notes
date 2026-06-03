@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Card, Table, Badge, Group, Stack,
@@ -7,7 +7,7 @@ import {
 import {
   IconChartCandle, IconAlertTriangle, IconCalendarEvent,
   IconCurrencyDollar, IconInfoCircle, IconHistory, IconClock, IconCalendarStats,
-  IconExternalLink,
+  IconExternalLink, IconRefresh,
 } from '@tabler/icons-react'
 import { useTrades } from '../context/TradesContext'
 import { formatCurrency, formatDate, getProfitColor } from '../utils/format'
@@ -57,7 +57,7 @@ function SummaryCard({ label, value, icon, color = 'blue' }) {
   )
 }
 
-function ExpiryGroup({ expDate, days, options: group, navigate }) {
+function ExpiryGroup({ expDate, days, options: group, navigate, prices, pricesLoading }) {
   const groupPremium   = group.reduce((s, o) => s + (parseFloat(o.buy_price) || 0), 0)
   const groupMoneyInPlay = group.reduce((s, o) => {
     const avg       = parseFloat(o.avg_price)
@@ -107,17 +107,18 @@ function ExpiryGroup({ expDate, days, options: group, navigate }) {
                 </Tooltip>
               </Group>
             </Table.Th>
+            <Table.Th>Current</Table.Th>
             <Table.Th>Premium</Table.Th>
-                    <Table.Th>Opened</Table.Th>
-                    <Table.Th>
-                      <Group gap={4}>
-                        Profit if Assigned
-                        <Tooltip label="(Strike − Avg Price) × Contracts × 100" withArrow>
-                          <IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} />
-                        </Tooltip>
-                      </Group>
-                    </Table.Th>
-                    <Table.Th />
+            <Table.Th>Opened</Table.Th>
+            <Table.Th>
+              <Group gap={4}>
+                Profit if Assigned
+                <Tooltip label="(Strike − Avg Price) × Contracts × 100" withArrow>
+                  <IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} />
+                </Tooltip>
+              </Group>
+            </Table.Th>
+            <Table.Th />
                   </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -142,6 +143,26 @@ function ExpiryGroup({ expDate, days, options: group, navigate }) {
                   ? <Text>${parseFloat(opt.avg_price).toFixed(2)}</Text>
                   : <Text c="dimmed" size="sm">—</Text>
                 }
+              </Table.Td>
+              <Table.Td>
+                {pricesLoading ? (
+                  <Text c="dimmed" size="sm">…</Text>
+                ) : prices[opt.symbol?.toUpperCase()] != null ? (
+                  (() => {
+                    const cur   = prices[opt.symbol.toUpperCase()]
+                    const strike = parseFloat(opt.strike_price)
+                    const itm   = opt.option_type === 'call' ? cur > strike : cur < strike
+                    return (
+                      <Tooltip label={itm ? 'In the money' : 'Out of the money'} withArrow>
+                        <Text fw={600} c={itm ? 'red' : 'green'}>
+                          ${cur.toFixed(2)}
+                        </Text>
+                      </Tooltip>
+                    )
+                  })()
+                ) : (
+                  <Text c="dimmed" size="sm">—</Text>
+                )}
               </Table.Td>
               <Table.Td>
                 <Text c="green" fw={500}>{formatCurrency(opt.buy_price)}</Text>
@@ -215,6 +236,8 @@ export default function OpenOptions() {
   const { trades, loading } = useTrades()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [prices, setPrices]         = useState({})   // { AAPL: 192.34, ... }
+  const [pricesLoading, setPricesLoading] = useState(false)
 
   const activeTab = VALID_TABS.includes(searchParams.get('tab'))
     ? searchParams.get('tab')
@@ -223,6 +246,32 @@ export default function OpenOptions() {
   const handleTabChange = (tab) => {
     setSearchParams({ tab }, { replace: true })
   }
+
+  // ── price fetching ────────────────────────────────────────────────────────
+  const fetchPrices = async (symbolList) => {
+    if (!symbolList.length) return
+    setPricesLoading(true)
+    try {
+      const res = await fetch(`/api/market-calendar?type=quotes&symbols=${symbolList.join(',')}`)
+      if (res.ok) {
+        const data = await res.json()
+        setPrices(data.prices ?? {})
+      }
+    } finally {
+      setPricesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (loading) return
+    const syms = [...new Set(
+      trades
+        .filter(t => t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
+        .map(t => t.symbol?.trim().toUpperCase())
+        .filter(Boolean)
+    )]
+    if (syms.length) fetchPrices(syms)
+  }, [loading, trades])
 
   const { current, future, past, totalPremium } = useMemo(() => {
     const enriched = trades
@@ -268,12 +317,32 @@ export default function OpenOptions() {
     <Container size="xl" py="xl">
       <Stack gap="xl">
         {/* Header */}
-        <div>
-          <Title order={1} mb="sm">Open Options</Title>
-          <Text c="dimmed" size="lg">
-            Track your active covered calls and cash-secured puts
-          </Text>
-        </div>
+        <Group justify="space-between" align="flex-start">
+          <div>
+            <Title order={1} mb="sm">Open Options</Title>
+            <Text c="dimmed" size="lg">
+              Track your active covered calls and cash-secured puts
+            </Text>
+          </div>
+          <Tooltip label="Refresh current prices" withArrow>
+            <ActionIcon
+              variant="subtle"
+              size="lg"
+              loading={pricesLoading}
+              onClick={() => {
+                const syms = [...new Set(
+                  trades
+                    .filter(t => t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
+                    .map(t => t.symbol?.trim().toUpperCase())
+                    .filter(Boolean)
+                )]
+                if (syms.length) fetchPrices(syms)
+              }}
+            >
+              <IconRefresh size={18} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
 
         {/* Alert for options expiring today */}
         {current.some(o => o.days === 0) && (
@@ -350,7 +419,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="current">
             <Stack gap="lg">
               {current.length > 0
-                ? groupByExpiry(current).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} />)
+                ? groupByExpiry(current).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} prices={prices} pricesLoading={pricesLoading} />)
                 : <EmptyState message="No options expiring this week" />
               }
             </Stack>
@@ -360,7 +429,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="future">
             <Stack gap="lg">
               {future.length > 0
-                ? groupByExpiry(future).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} />)
+                ? groupByExpiry(future).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} prices={prices} pricesLoading={pricesLoading} />)
                 : <EmptyState message="No future expirations" />
               }
             </Stack>
@@ -370,7 +439,7 @@ export default function OpenOptions() {
           <Tabs.Panel value="past">
             <Stack gap="lg">
               {past.length > 0
-                ? groupByExpiry(past).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} />)
+                ? groupByExpiry(past).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} prices={prices} pricesLoading={pricesLoading} />)
                 : <EmptyState message="No past expirations" />
               }
             </Stack>

@@ -58,6 +58,37 @@ async function handleIPOs(req, res) {
   })
 }
 
+// Batch-fetch current prices from Yahoo Finance (unofficial crumb-free endpoint)
+async function handleQuotes(req, res) {
+  const symbols = (req.query.symbols || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+  if (!symbols.length) return res.status(400).json({ message: 'symbols query param required (comma-separated)' })
+
+  // Yahoo Finance v8 accepts a single symbol per call; run them in parallel
+  const results = await Promise.allSettled(
+    symbols.map(sym =>
+      fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`,
+        { headers: HEADERS }
+      ).then(r => r.json())
+    )
+  )
+
+  const prices = {}
+  for (let i = 0; i < symbols.length; i++) {
+    const r = results[i]
+    if (r.status === 'fulfilled') {
+      const meta = r.value?.chart?.result?.[0]?.meta
+      prices[symbols[i]] = meta?.regularMarketPrice ?? meta?.previousClose ?? null
+    } else {
+      prices[symbols[i]] = null
+    }
+  }
+
+  // Short cache — stale price is fine, but don't hammer Yahoo on every keystroke
+  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300')
+  res.json({ prices })
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true)
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -69,7 +100,8 @@ export default async function handler(req, res) {
 
   const { type } = req.query
   try {
-    if (type === 'ipos') return await handleIPOs(req, res)
+    if (type === 'ipos')   return await handleIPOs(req, res)
+    if (type === 'quotes') return await handleQuotes(req, res)
     return await handleEarnings(req, res) // default: earnings
   } catch (error) {
     console.error('Market calendar API error:', error)
