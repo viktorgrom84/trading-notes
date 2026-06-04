@@ -22,7 +22,14 @@
  */
 export function parseLocalDate(date) {
   if (!date) return null
-  if (date instanceof Date) return isNaN(date.getTime()) ? null : date
+  if (date instanceof Date) {
+    if (isNaN(date.getTime())) return null
+    // node-postgres returns DATE columns as Date objects at midnight UTC.
+    // Use .toISOString() to get the correct UTC date string before re-parsing
+    // at local noon — otherwise dates appear one day early in UTC-negative timezones.
+    const datePart = date.toISOString().slice(0, 10)
+    return new Date(datePart + 'T12:00:00')
+  }
   const datePart = String(date).slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null
   const d = new Date(datePart + 'T12:00:00')
