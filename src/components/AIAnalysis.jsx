@@ -55,6 +55,7 @@ const AIAnalysis = ({ user }) => {
     loadCostData()
     loadAnalysisHistory()
     loadLastAnalysisDate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadLastAnalysisDate = useCallback(async () => {

@@ -8,14 +8,12 @@ import {
   Button, 
   Title, 
   Text, 
-  Group, 
   Stack,
   Center,
   Box,
   ThemeIcon,
-  Alert
 } from '@mantine/core'
-import { IconTrendingUp, IconEye, IconEyeOff, IconAlertCircle } from '@tabler/icons-react'
+import { IconTrendingUp, IconAlertCircle } from '@tabler/icons-react'
 import { useForm } from '@mantine/form'
 import { notifications } from '@mantine/notifications'
 import apiClient from '../api'

@@ -47,6 +47,7 @@ const Navbar = ({ user, onLogout }) => {
   const colorScheme = useComputedColorScheme('light')
   const isDark = colorScheme === 'dark'
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const hasAdminAccess = useMemo(() => checkAdminAccess(user), [user?.username])
 
   // Standalone nav links
@@ -70,14 +71,6 @@ const Navbar = ({ user, onLogout }) => {
     { path: '/statistics',     label: 'Statistics',       icon: IconChartBar },
     { path: '/ai-analysis',    label: 'AI Analysis',      icon: IconBrain },
     { path: '/tradingview-mcp',label: 'TradingView MCP',  icon: IconChartCandle },
-  ]
-
-  // All items flat (for mobile drawer)
-  const allItems = [
-    ...standaloneItems,
-    ...marketItems,
-    ...analysisItems,
-    ...(hasAdminAccess ? [{ path: '/admin', label: 'Admin', icon: IconShield }] : []),
   ]
 
   const isActive = (path) => location.pathname === path

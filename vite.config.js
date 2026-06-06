@@ -41,7 +41,7 @@ export default defineConfig({
         target: 'https://trading-notes.vercel.app',
         changeOrigin: true,
         secure: true,
-        configure: (proxy, _options) => {
+        configure: (_proxy, _options) => {
           // Proxy configuration for API requests
         },
       }

@@ -5,7 +5,7 @@
  *  - getWinLossData
  *  - Win rate StatCard color (the string-vs-number bug)
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { tradeProfit, isTradeClosed } from '../utils/tradeProfit'
 import { getProfitColor } from '../utils/format'
 

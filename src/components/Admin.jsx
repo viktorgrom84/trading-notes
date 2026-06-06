@@ -17,7 +17,6 @@ import {
   ThemeIcon,
   Card,
   Grid,
-  Divider
 } from '@mantine/core';
 import {
   IconUsers,

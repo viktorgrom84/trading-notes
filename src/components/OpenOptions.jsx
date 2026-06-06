@@ -332,7 +332,7 @@ function groupByExpiry(options) {
 const VALID_TABS = ['current', 'future', 'past']
 
 export default function OpenOptions() {
-  const { trades, loading, refresh } = useTrades()
+  const { trades, loading } = useTrades()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   // quotes: { AAPL: { price: 185.5, hv: 35 }, ... }

@@ -275,8 +275,6 @@ const Statistics = () => {
   const symbolData = getSymbolData()
   const winLossData = getWinLossData()
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
-
   // valueColor: explicit text colour; falls back to green/red for numbers, 'inherit' for strings
   const StatCard = ({ title, value, icon, color = 'blue', valueColor }) => {
     const textColor = valueColor

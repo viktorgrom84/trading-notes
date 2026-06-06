@@ -170,6 +170,7 @@ const TradingNotes = () => {
       autoNoteRef.current = generated
       form.setFieldValue('notes', generated)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType, form.values.buyDate])
 
   // Deep-link: /trades?id=X opens edit modal
@@ -186,6 +187,7 @@ const TradingNotes = () => {
       open()
       navigate('/trades', { replace: true, state: {} })
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get('id'), location.state?.openTradeId, loading, trades])
 
   // Pre-fill new profit-only form from assignment: /trades?prefill=profit_only&symbol=X&profit=Y&date=D
@@ -207,6 +209,7 @@ const TradingNotes = () => {
     })
     open()
     navigate('/trades', { replace: true, state: {} })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get('prefill')])
 
   const handleSubmit = async (values) => {

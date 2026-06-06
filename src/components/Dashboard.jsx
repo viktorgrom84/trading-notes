@@ -71,6 +71,7 @@ const Dashboard = ({ user }) => {
     loadStatistics()
     loadPerformanceTarget()
     loadYearlyGoal()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadStatistics])
 
   const loadPerformanceTarget = useCallback(async () => {
@@ -187,7 +188,7 @@ const Dashboard = ({ user }) => {
     }
   }, [allTrades])
 
-  const StatCard = useCallback(({ title, value, icon, color = 'blue' }) => ( // eslint-disable-line react/display-name
+  const StatCard = useCallback(({ title, value, icon, color = 'blue' }) => (
     <Card withBorder radius="md" p="xl">
       <Group justify="space-between">
         <div>
@@ -203,6 +204,7 @@ const Dashboard = ({ user }) => {
         </ThemeIcon>
       </Group>
     </Card>
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [getProfitColor, formatCurrency])
 
   const processedRecentTrades = useMemo(() => {

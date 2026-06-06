@@ -40,6 +40,7 @@ export function TradesProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTrades() {
   const ctx = useContext(TradesContext)
   if (!ctx) throw new Error('useTrades must be used inside <TradesProvider>')

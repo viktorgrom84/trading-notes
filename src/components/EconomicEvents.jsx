@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Stack, Card, Group, Badge, TextInput,
   Skeleton, Center, ThemeIcon, ActionIcon, Button, Paper,
-  Accordion, Tooltip, SegmentedControl
+  Tooltip, SegmentedControl
 } from '@mantine/core'
 import {
   IconSearch, IconCalendarEvent, IconArrowLeft, IconArrowRight,
@@ -58,11 +58,6 @@ const impactColor = (event) => {
   return 'gray'
 }
 
-const impactLabel = (event) => {
-  if (isHighImpact(event)) return 'High'
-  if (isUS(event)) return 'Medium'
-  return 'Low'
-}
 
 export default function EconomicEvents() {
   const [searchParams, setSearchParams] = useSearchParams()

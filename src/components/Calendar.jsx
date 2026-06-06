@@ -221,24 +221,13 @@ const Calendar = () => {
       autoNoteRef.current = generated
       form.setFieldValue('notes', generated)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tradeMode, form.values.symbol, form.values.optionType, form.values.strikePrice, form.values.expirationDate, form.values.avgPrice, form.values.contracts, form.values.buyPrice, form.values.positionType, form.values.buyDate])
 
   const getProfitIcon = (profit) => {
     if (profit > 0) return <IconTrendingUp size={16} />
     if (profit < 0) return <IconTrendingDown size={16} />
     return <IconMinus size={16} />
-  }
-
-  // Format currency with K notation for thousands — kept for reference but not used
-  const formatCurrencyCompact = (amount) => {
-    if (amount === null || amount === undefined) return '$0'
-    
-    const absAmount = Math.abs(amount)
-    if (absAmount >= 1000) {
-      const kValue = (amount / 1000).toFixed(1)
-      return `${amount < 0 ? '-' : ''}$${kValue}K`
-    }
-    return formatCurrency(amount)
   }
 
   // Calculate daily P&L for a specific date
