@@ -6,14 +6,12 @@ import {
   Modal, Button, Divider,
 } from '@mantine/core'
 import {
-  IconChartCandle, IconAlertTriangle, IconCalendarEvent,
+  IconChartCandle, IconCalendarEvent,
   IconCurrencyDollar, IconInfoCircle, IconHistory, IconClock, IconCalendarStats,
   IconExternalLink, IconRefresh, IconCheck,
 } from '@tabler/icons-react'
-import { notifications } from '@mantine/notifications'
 import { useTrades } from '../context/TradesContext'
 import { formatCurrency, formatDate, getProfitColor, getLocalDateString } from '../utils/format'
-import apiClient from '../api'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function daysToExpiry(expirationDate) {
@@ -466,17 +464,6 @@ export default function OpenOptions() {
             </ActionIcon>
           </Tooltip>
         </Group>
-
-        {/* Alert for options expiring today */}
-        {current.some(o => o.days === 0) && (
-          <Alert icon={<IconAlertTriangle size={18} />} color="red" title="Expiring TODAY">
-            {current.filter(o => o.days === 0).map(o => (
-              <Text key={o.id} size="sm">
-                <strong>{o.symbol}</strong> {o.label} — Strike ${parseFloat(o.strike_price).toFixed(2)}
-              </Text>
-            ))}
-          </Alert>
-        )}
 
         {/* Summary cards — reflect all open positions */}
         <SimpleGrid cols={{ base: 1, sm: 3 }}>

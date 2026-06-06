@@ -42,7 +42,6 @@ import {
   IconTrendingUp,
   IconTrendingDown,
   IconMinus,
-  IconSwitch
 } from '@tabler/icons-react'
 import { useForm } from '@mantine/form'
 import { useDisclosure } from '@mantine/hooks'
