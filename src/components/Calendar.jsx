@@ -512,7 +512,7 @@ const Calendar = () => {
                                   size="xs"
                                   variant="subtle"
                                   color="blue"
-                                  onClick={() => navigate(`/trades?id=${trade.id}`)}
+                                  onClick={() => navigate(`/trades?id=${trade.id}&returnTo=/calendar`)}
                                 >
                                   <IconArrowUpRight size={12} />
                                 </ActionIcon>

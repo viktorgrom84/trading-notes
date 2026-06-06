@@ -78,6 +78,18 @@ const TradingNotes = () => {
   const [opened, { open, close }] = useDisclosure(false)
   const [editingTrade, setEditingTrade] = useState(null)
   const [tradeMode, setTradeMode] = useState('regular') // 'regular' | 'option' | 'profit'
+  const [returnPath, setReturnPath] = useState(null)
+
+  const handleClose = () => {
+    close()
+    form.reset()
+    setEditingTrade(null)
+    if (returnPath) {
+      const path = returnPath
+      setReturnPath(null)
+      navigate(path)
+    }
+  }
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -174,6 +186,8 @@ const TradingNotes = () => {
     if (!targetId || loading || trades.length === 0) return
     const trade = trades.find(t => t.id === targetId)
     if (trade) {
+      const ret = searchParams.get('returnTo')
+      if (ret) setReturnPath(ret)
       handleEdit(trade)
       open()
       navigate('/trades', { replace: true, state: {} })
@@ -261,9 +275,7 @@ const TradingNotes = () => {
       }
 
       await refresh()
-      close()
-      form.reset()
-      setEditingTrade(null)
+      handleClose()
     } catch (error) {
       console.error('Error saving trade:', error)
       notifications.show({
@@ -721,7 +733,7 @@ const TradingNotes = () => {
         {/* Add/Edit Modal */}
         <Modal
           opened={opened}
-          onClose={close}
+          onClose={handleClose}
           title={editingTrade ? 'Edit Trade' : 'Add New Trade'}
           size="lg"
         >
@@ -1017,13 +1029,28 @@ const TradingNotes = () => {
                 {...form.getInputProps('notes')}
               />
               
-              <Group justify="flex-end" mt="md">
-                <Button variant="outline" onClick={close}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="gradient" gradient={{ from: 'blue', to: 'purple' }}>
-                  {editingTrade ? 'Update Trade' : 'Add Trade'}
-                </Button>
+              <Group justify="space-between" mt="md">
+                {editingTrade ? (
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    leftSection={<IconTrash size={16} />}
+                    onClick={async () => {
+                      await handleDelete(editingTrade.id)
+                      handleClose()
+                    }}
+                  >
+                    Delete Trade
+                  </Button>
+                ) : <span />}
+                <Group>
+                  <Button variant="outline" onClick={handleClose}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="gradient" gradient={{ from: 'blue', to: 'purple' }}>
+                    {editingTrade ? 'Update Trade' : 'Add Trade'}
+                  </Button>
+                </Group>
               </Group>
             </Stack>
           </form>

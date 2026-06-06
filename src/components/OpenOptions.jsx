@@ -286,7 +286,7 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
                             <ActionIcon
                               variant="subtle"
                               color="blue"
-                              onClick={() => navigate(`/trades?id=${opt.id}`)}
+                              onClick={() => navigate(`/trades?id=${opt.id}&returnTo=/options`)}
                             >
                               <IconExternalLink size={15} />
                             </ActionIcon>
