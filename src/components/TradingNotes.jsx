@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { 
   Container, 
-  Paper, 
   TextInput, 
   NumberInput, 
   Button, 
@@ -19,11 +18,8 @@ import {
   Center,
   ThemeIcon,
   Menu,
-  Drawer,
   ScrollArea,
-  Divider,
   Skeleton,
-  Switch,
   SegmentedControl,
   Tooltip,
   Pagination,
@@ -37,8 +33,6 @@ import {
   IconSearch, 
   IconFilter,
   IconBook,
-  IconCalendar,
-  IconCurrencyDollar,
   IconTrendingUp,
   IconTrendingDown,
   IconMinus,
