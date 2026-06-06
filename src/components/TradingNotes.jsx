@@ -79,6 +79,7 @@ const TradingNotes = () => {
   const [editingTrade, setEditingTrade] = useState(null)
   const [tradeMode, setTradeMode] = useState('regular') // 'regular' | 'option' | 'profit'
   const [returnPath, setReturnPath] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null) // { id, afterDelete? }
 
   const handleClose = () => {
     close()
@@ -343,15 +344,23 @@ const TradingNotes = () => {
     open()
   }
 
-  const handleDelete = async (tradeId) => {
+  const confirmDelete = (tradeId, afterDelete) => {
+    setDeleteTarget({ id: tradeId, afterDelete })
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    const { id, afterDelete } = deleteTarget
+    setDeleteTarget(null)
     try {
-      await apiClient.deleteTrade(tradeId)
+      await apiClient.deleteTrade(id)
       notifications.show({
         title: 'Success',
         message: 'Trade deleted successfully',
         color: 'green',
       })
       await refresh()
+      if (afterDelete) afterDelete()
     } catch (error) {
       console.error('Error deleting trade:', error)
       notifications.show({
@@ -561,7 +570,7 @@ const TradingNotes = () => {
             <ActionIcon
               variant="subtle"
               color="red"
-              onClick={() => handleDelete(trade.id)}
+              onClick={() => confirmDelete(trade.id)}
             >
               <IconTrash size={16} />
             </ActionIcon>
@@ -1035,10 +1044,7 @@ const TradingNotes = () => {
                     variant="subtle"
                     color="red"
                     leftSection={<IconTrash size={16} />}
-                    onClick={async () => {
-                      await handleDelete(editingTrade.id)
-                      handleClose()
-                    }}
+                    onClick={() => confirmDelete(editingTrade.id, handleClose)}
                   >
                     Delete Trade
                   </Button>
@@ -1054,6 +1060,27 @@ const TradingNotes = () => {
               </Group>
             </Stack>
           </form>
+        </Modal>
+
+        {/* Delete confirmation modal */}
+        <Modal
+          opened={deleteTarget !== null}
+          onClose={() => setDeleteTarget(null)}
+          title="Delete Trade"
+          size="sm"
+          centered
+        >
+          <Stack gap="md">
+            <Text>Are you sure you want to delete this trade? This action cannot be undone.</Text>
+            <Group justify="flex-end">
+              <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </Button>
+              <Button color="red" leftSection={<IconTrash size={16} />} onClick={handleDelete}>
+                Delete
+              </Button>
+            </Group>
+          </Stack>
         </Modal>
       </Stack>
     </Container>
