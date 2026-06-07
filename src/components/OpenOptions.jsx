@@ -14,24 +14,42 @@ import { useTrades } from '../context/TradesContext'
 import { formatCurrency, formatDate, getProfitColor, getLocalDateString } from '../utils/format'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+// Count Mon–Fri trading days between today and the expiration date.
+// Returns 0 if today, positive if in the future, negative if in the past.
 function daysToExpiry(expirationDate) {
   if (!expirationDate) return null
-  // Slice to YYYY-MM-DD — handles both plain dates and ISO timestamps from PostgreSQL
   const datePart = String(expirationDate).slice(0, 10)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const exp = new Date(datePart + 'T12:00:00') // noon avoids DST edge cases
+  const exp = new Date(datePart + 'T12:00:00')
   if (isNaN(exp.getTime())) return null
-  return Math.round((exp - today) / (1000 * 60 * 60 * 24))
+  exp.setHours(0, 0, 0, 0)
+
+  if (exp.getTime() === today.getTime()) return 0
+
+  const forward = exp > today
+  const from = forward ? today : exp
+  const to   = forward ? exp   : today
+
+  let count = 0
+  const cursor = new Date(from)
+  cursor.setDate(cursor.getDate() + 1)
+  while (cursor <= to) {
+    const dow = cursor.getDay()
+    if (dow >= 1 && dow <= 5) count++
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return forward ? count : -count
 }
 
 function expiryBadge(days) {
   if (days === null) return <Badge color="gray"   variant="light">No expiry</Badge>
-  if (days < 0)      return <Badge color="gray"   variant="filled">Expired {Math.abs(days)}d ago</Badge>
+  if (days < 0)      return <Badge color="gray"   variant="filled">Expired {Math.abs(days)}td ago</Badge>
   if (days === 0)    return <Badge color="red"    variant="filled">Expires TODAY</Badge>
-  if (days <= 7)     return <Badge color="orange" variant="filled">{days}d left</Badge>
-  if (days <= 30)    return <Badge color="yellow" variant="light">{days}d left</Badge>
-  return                    <Badge color="gray"   variant="light">{days}d left</Badge>
+  if (days <= 5)     return <Badge color="orange" variant="filled">{days}td left</Badge>
+  if (days <= 21)    return <Badge color="yellow" variant="light">{days}td left</Badge>
+  return                    <Badge color="gray"   variant="light">{days}td left</Badge>
 }
 
 function calcProfitIfAssigned(trade) {
@@ -126,7 +144,7 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
     const contracts = parseInt(o.shares) || 1
     return isNaN(avg) ? s : s + avg * contracts * 100
   }, 0)
-  const isUrgent = days !== null && days >= 0 && days <= 7
+  const isUrgent = days !== null && days >= 0 && days <= 5
 
   return (
     <Card
@@ -410,8 +428,8 @@ export default function OpenOptions() {
         return a.days - b.days
       })
 
-    const current = enriched.filter(o => o.days !== null && o.days >= 0 && o.days <= 7)
-    const future  = enriched.filter(o => o.days === null || o.days > 7)
+    const current = enriched.filter(o => o.days !== null && o.days >= 0 && o.days <= 5)
+    const future  = enriched.filter(o => o.days === null || o.days > 5)
     const past    = enriched.filter(o => o.days !== null && o.days < 0)
       .sort((a, b) => b.days - a.days) // most recently expired first
 
