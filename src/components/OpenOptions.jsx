@@ -40,7 +40,9 @@ function daysToExpiry(expirationDate) {
     if (dow >= 1 && dow <= 5) count++
     cursor.setDate(cursor.getDate() + 1)
   }
-  return forward ? count : -count
+  // If the calendar date already passed but there are no trading days in between
+  // (e.g. option expired Friday, today is Saturday/Sunday) still mark as expired (-1).
+  return forward ? count : (count === 0 ? -1 : -count)
 }
 
 function expiryBadge(days) {
