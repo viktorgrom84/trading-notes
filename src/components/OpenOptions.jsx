@@ -13,38 +13,9 @@ import {
 } from '@tabler/icons-react'
 import { useTrades } from '../context/TradesContext'
 import { formatCurrency, formatDate, getProfitColor, getLocalDateString } from '../utils/format'
+import { daysToExpiry, calcPremiumYield, calcProfitIfAssigned } from '../utils/options'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-// Count Mon–Fri trading days between today and the expiration date.
-// Returns 0 if today, positive if in the future, negative if in the past.
-function daysToExpiry(expirationDate) {
-  if (!expirationDate) return null
-  const datePart = String(expirationDate).slice(0, 10)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const exp = new Date(datePart + 'T12:00:00')
-  if (isNaN(exp.getTime())) return null
-  exp.setHours(0, 0, 0, 0)
-
-  if (exp.getTime() === today.getTime()) return 0
-
-  const forward = exp > today
-  const from = forward ? today : exp
-  const to   = forward ? exp   : today
-
-  let count = 0
-  const cursor = new Date(from)
-  cursor.setDate(cursor.getDate() + 1)
-  while (cursor <= to) {
-    const dow = cursor.getDay()
-    if (dow >= 1 && dow <= 5) count++
-    cursor.setDate(cursor.getDate() + 1)
-  }
-  // If the calendar date already passed but there are no trading days in between
-  // (e.g. option expired Friday, today is Saturday/Sunday) still mark as expired (-1).
-  return forward ? count : (count === 0 ? -1 : -count)
-}
 
 function expiryBadge(days) {
   if (days === null) return <Badge color="gray"   variant="light">No expiry</Badge>
@@ -53,23 +24,6 @@ function expiryBadge(days) {
   if (days <= 5)     return <Badge color="orange" variant="filled">{days}td left</Badge>
   if (days <= 21)    return <Badge color="yellow" variant="light">{days}td left</Badge>
   return                    <Badge color="gray"   variant="light">{days}td left</Badge>
-}
-
-function calcPremiumYield(trade) {
-  const premium   = parseFloat(trade.buy_price)
-  const avg       = parseFloat(trade.avg_price)
-  const contracts = parseInt(trade.shares) || 1
-  if (!trade.avg_price || isNaN(avg) || avg <= 0 || isNaN(premium)) return null
-  return (premium / (avg * contracts * 100)) * 100
-}
-
-function calcProfitIfAssigned(trade) {
-  const strike    = parseFloat(trade.strike_price)
-  const avgCost   = parseFloat(trade.avg_price)
-  const contracts = parseInt(trade.shares) || 1
-  if (!trade.avg_price && trade.avg_price !== 0) return null
-  if (isNaN(strike) || isNaN(avgCost)) return null
-  return (strike - avgCost) * contracts * 100
 }
 
 // ─── reusable sub-components ──────────────────────────────────────────────────
