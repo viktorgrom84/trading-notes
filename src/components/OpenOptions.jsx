@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Card, Table, Badge, Group, Stack,
@@ -17,6 +17,32 @@ import { daysToExpiry, calcPremiumYield, calcProfitIfAssigned } from '../utils/o
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+/** Reusable sortable column header — must live at module level to avoid React remount on every parent render. */
+function SortTh({ col, label, tooltip, sort, onSort }) {
+  const Icon = sort.col !== col
+    ? <IconSelector size={13} style={{ opacity: 0.35 }} />
+    : sort.dir === 'asc' ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />
+  return (
+    <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }}>
+      <UnstyledButton onClick={() => onSort(col)}>
+        <Group gap={4} wrap="nowrap">
+          {tooltip ? (
+            <Tooltip label={tooltip} withArrow>
+              <Group gap={4} wrap="nowrap">
+                <Text fw={600} size="sm">{label}</Text>
+                <IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} />
+              </Group>
+            </Tooltip>
+          ) : (
+            <Text fw={600} size="sm">{label}</Text>
+          )}
+          {Icon}
+        </Group>
+      </UnstyledButton>
+    </Table.Th>
+  )
+}
+
 function expiryBadge(days) {
   if (days === null) return <Badge color="gray"   variant="light">No expiry</Badge>
   if (days < 0)      return <Badge color="gray"   variant="filled">Expired</Badge>
@@ -27,13 +53,16 @@ function expiryBadge(days) {
 }
 
 // ─── reusable sub-components ──────────────────────────────────────────────────
-function SummaryCard({ label, value, icon, color = 'blue' }) {
+function SummaryCard({ label, value, subValue, icon, color = 'blue' }) {
   return (
     <Card withBorder radius="md" p="lg">
       <Group justify="space-between">
         <div>
           <Text size="sm" c="dimmed" fw={500} mb={4}>{label}</Text>
-          <Text size="xl" fw={700}>{value}</Text>
+          <Group gap={6} align="baseline">
+            <Text size="xl" fw={700}>{value}</Text>
+            {subValue && <Text size="sm" c="dimmed">({subValue})</Text>}
+          </Group>
         </div>
         <ThemeIcon size="xl" variant="light" color={color}>{icon}</ThemeIcon>
       </Group>
@@ -112,47 +141,29 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
   const isUrgent = days !== null && days >= 0 && days <= 5
 
   const [sort, setSort] = useState({ col: 'symbol', dir: 'asc' })
-  const toggleSort = (col) => setSort(s => ({
+  const toggleSort = useCallback((col) => setSort(s => ({
     col,
     dir: s.col === col ? (s.dir === 'asc' ? 'desc' : 'asc') : 'asc',
-  }))
-  const SortIcon = ({ col }) => {
-    if (sort.col !== col) return <IconSelector size={13} style={{ opacity: 0.35 }} />
-    return sort.dir === 'asc' ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />
-  }
+  })), [])
 
-  const sortedGroup = [...group].sort((a, b) => {
+  const sortedGroup = useMemo(() => [...group].sort((a, b) => {
     const { col, dir } = sort
     let av, bv
     switch (col) {
-      case 'symbol':          av = a.symbol ?? '';                         bv = b.symbol ?? '';                         break
-      case 'option_type':     av = a.label  ?? '';                         bv = b.label  ?? '';                         break
-      case 'shares':          av = parseInt(a.shares)  || 0;               bv = parseInt(b.shares)  || 0;               break
-      case 'strike_price':    av = parseFloat(a.strike_price) || 0;        bv = parseFloat(b.strike_price) || 0;        break
-      case 'avg_price':       av = parseFloat(a.avg_price) || 0;           bv = parseFloat(b.avg_price) || 0;           break
-      case 'buy_price':       av = parseFloat(a.buy_price) || 0;           bv = parseFloat(b.buy_price) || 0;           break
-      case 'yield':           av = a.yield ?? -Infinity;                   bv = b.yield ?? -Infinity;                   break
-      case 'buy_date':        av = a.buy_date ?? '';                       bv = b.buy_date ?? '';                       break
-      case 'profitIfAssigned':av = a.profitIfAssigned ?? -Infinity;        bv = b.profitIfAssigned ?? -Infinity;        break
-      default:                av = 0; bv = 0
+      case 'symbol':           av = a.symbol ?? '';                  bv = b.symbol ?? '';                  break
+      case 'option_type':      av = a.label  ?? '';                  bv = b.label  ?? '';                  break
+      case 'shares':           av = parseInt(a.shares)  || 0;        bv = parseInt(b.shares)  || 0;        break
+      case 'strike_price':     av = parseFloat(a.strike_price) || 0; bv = parseFloat(b.strike_price) || 0; break
+      case 'avg_price':        av = parseFloat(a.avg_price) || 0;    bv = parseFloat(b.avg_price) || 0;    break
+      case 'buy_price':        av = parseFloat(a.buy_price) || 0;    bv = parseFloat(b.buy_price) || 0;    break
+      case 'yield':            av = a.yield ?? -Infinity;            bv = b.yield ?? -Infinity;            break
+      case 'buy_date':         av = a.buy_date ?? '';                bv = b.buy_date ?? '';                break
+      case 'profitIfAssigned': av = a.profitIfAssigned ?? -Infinity; bv = b.profitIfAssigned ?? -Infinity; break
+      default:                 av = 0; bv = 0
     }
     if (typeof av === 'string') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     return dir === 'asc' ? av - bv : bv - av
-  })
-
-  const Th = ({ col, label, tooltip }) => (
-    <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }}>
-      <UnstyledButton onClick={() => toggleSort(col)}>
-        <Group gap={4} wrap="nowrap">
-          {tooltip
-            ? <Tooltip label={tooltip} withArrow><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Text fw={600} size="sm">{label}</Text><IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} /></span></Tooltip>
-            : <Text fw={600} size="sm">{label}</Text>
-          }
-          <SortIcon col={col} />
-        </Group>
-      </UnstyledButton>
-    </Table.Th>
-  )
+  }), [group, sort])
 
   return (
     <Card
@@ -183,11 +194,11 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
       <Table striped highlightOnHover>
         <Table.Thead>
           <Table.Tr>
-            <Th col="symbol"          label="Ticker" />
-            <Th col="option_type"     label="Type" />
-            <Th col="shares"          label="Contracts" />
-            <Th col="strike_price"    label="Strike" />
-            <Th col="avg_price"       label="Avg Price"          tooltip="Your average cost basis per share of the underlying stock" />
+            <SortTh col="symbol"           label="Ticker"             sort={sort} onSort={toggleSort} />
+            <SortTh col="option_type"      label="Type"               sort={sort} onSort={toggleSort} />
+            <SortTh col="shares"           label="Contracts"          sort={sort} onSort={toggleSort} />
+            <SortTh col="strike_price"     label="Strike"             sort={sort} onSort={toggleSort} />
+            <SortTh col="avg_price"        label="Avg Price"          sort={sort} onSort={toggleSort} tooltip="Your average cost basis per share of the underlying stock" />
             <Table.Th>Current</Table.Th>
             <Table.Th>
               <Group gap={4}>
@@ -197,10 +208,10 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
                 </Tooltip>
               </Group>
             </Table.Th>
-            <Th col="buy_price"       label="Premium" />
-            <Th col="yield"           label="Yield %"            tooltip="Premium ÷ (Avg Price × Contracts × 100) — return on capital deployed" />
-            <Th col="buy_date"        label="Opened" />
-            <Th col="profitIfAssigned"label="Profit if Assigned" tooltip="(Strike − Avg Price) × Contracts × 100" />
+            <SortTh col="buy_price"        label="Premium"            sort={sort} onSort={toggleSort} />
+            <SortTh col="yield"            label="Yield %"            sort={sort} onSort={toggleSort} tooltip="Premium ÷ (Avg Price × Contracts × 100) — return on capital deployed" />
+            <SortTh col="buy_date"         label="Opened"             sort={sort} onSort={toggleSort} />
+            <SortTh col="profitIfAssigned" label="Profit if Assigned" sort={sort} onSort={toggleSort} tooltip="(Strike − Avg Price) × Contracts × 100" />
             <Table.Th />
           </Table.Tr>
         </Table.Thead>
@@ -439,7 +450,7 @@ export default function OpenOptions() {
     navigate(`/trades?prefill=profit_only&symbol=${encodeURIComponent(opt.symbol)}&profit=${profit}&date=${today}`)
   }
 
-  const { current, future, past, totalPremium } = useMemo(() => {
+  const { current, future, past, totalPremium, currentUnique, futureUnique, pastUnique } = useMemo(() => {
     const enriched = trades
       .filter(t => t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
       .map(t => ({
@@ -463,7 +474,13 @@ export default function OpenOptions() {
 
     const totalPremium = enriched.reduce((s, o) => s + (parseFloat(o.buy_price) || 0), 0)
 
-    return { current, future, past, totalPremium }
+    const uniq = arr => new Set(arr.map(o => o.symbol?.toUpperCase()).filter(Boolean)).size
+    return {
+      current, future, past, totalPremium,
+      currentUnique: uniq(current),
+      futureUnique:  uniq(future),
+      pastUnique:    uniq(past),
+    }
   }, [trades])
 
   const [perfSort, setPerfSort] = useState({ col: 'avgYield', dir: 'desc' })
@@ -604,12 +621,14 @@ export default function OpenOptions() {
           <SummaryCard
             label="Expiring This Week"
             value={current.length}
+            subValue={currentUnique > 0 ? `${currentUnique} unique` : null}
             icon={<IconCalendarEvent size={24} />}
             color={current.length > 0 ? 'orange' : 'blue'}
           />
           <SummaryCard
             label="Future Expirations"
             value={future.length}
+            subValue={futureUnique > 0 ? `${futureUnique} unique` : null}
             icon={<IconCalendarStats size={24} />}
             color="blue"
           />
@@ -638,7 +657,7 @@ export default function OpenOptions() {
               leftSection={<IconClock size={16} />}
               rightSection={
                 current.length > 0
-                  ? <Badge color="orange" variant="filled" size="sm">{current.length}</Badge>
+                  ? <Badge color="orange" variant="filled" size="sm">{current.length} ({currentUnique})</Badge>
                   : undefined
               }
             >
@@ -649,7 +668,7 @@ export default function OpenOptions() {
               leftSection={<IconCalendarStats size={16} />}
               rightSection={
                 future.length > 0
-                  ? <Badge color="blue" variant="light" size="sm">{future.length}</Badge>
+                  ? <Badge color="blue" variant="light" size="sm">{future.length} ({futureUnique})</Badge>
                   : undefined
               }
             >
@@ -660,7 +679,7 @@ export default function OpenOptions() {
               leftSection={<IconHistory size={16} />}
               rightSection={
                 past.length > 0
-                  ? <Badge color="gray" variant="light" size="sm">{past.length}</Badge>
+                  ? <Badge color="gray" variant="light" size="sm">{past.length} ({pastUnique})</Badge>
                   : undefined
               }
             >
