@@ -48,7 +48,7 @@ const TIME_RANGES = [
 const VALID_SORT_COLS  = ['symbol', 'count', 'profit', 'avg']
 const VALID_DIRS       = ['asc', 'desc']
 const VALID_RANGES     = TIME_RANGES.map(r => r.value)
-const VALID_TABLE_TABS = ['symbol', 'monthly']
+const VALID_TABLE_TABS = ['symbol', 'monthly', 'optionYield']
 
 const Statistics = () => {
   const { trades, loading } = useTrades()
@@ -68,6 +68,16 @@ const Statistics = () => {
   const [tableTab, setTableTab] = useState(() =>
     VALID_TABLE_TABS.includes(searchParams.get('table')) ? searchParams.get('table') : 'symbol'
   )
+
+  const [yieldSort, setYieldSort] = useState({ col: 'avgYield', dir: 'desc' })
+  const toggleYieldSort = (col) => setYieldSort(s => ({
+    col,
+    dir: s.col === col ? (s.dir === 'asc' ? 'desc' : 'asc') : 'desc',
+  }))
+  const YieldSortIcon = ({ col }) => {
+    if (yieldSort.col !== col) return <IconSelector size={14} style={{ opacity: 0.4 }} />
+    return yieldSort.dir === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />
+  }
 
   const updateTableTab = (tab) => {
     setTableTab(tab)
@@ -270,10 +280,43 @@ const Statistics = () => {
     ]
   }
 
+  const getOptionYieldData = () => {
+    const shortOptions = trades.filter(t => t.trade_type === 'option' && t.position_type === 'short')
+    const byTicker = {}
+    for (const t of shortOptions) {
+      const sym = t.symbol
+      if (!byTicker[sym]) byTicker[sym] = { symbol: sym, count: 0, totalPremium: 0, yields: [] }
+      byTicker[sym].count        += 1
+      byTicker[sym].totalPremium += parseFloat(t.buy_price) || 0
+      const avg       = parseFloat(t.avg_price)
+      const premium   = parseFloat(t.buy_price)
+      const contracts = parseInt(t.shares) || 1
+      if (t.avg_price && !isNaN(avg) && avg > 0 && !isNaN(premium)) {
+        byTicker[sym].yields.push((premium / (avg * contracts * 100)) * 100)
+      }
+    }
+    return Object.values(byTicker)
+      .map(d => ({
+        ...d,
+        avgYield:   d.yields.length ? d.yields.reduce((s, y) => s + y, 0) / d.yields.length : null,
+        bestYield:  d.yields.length ? Math.max(...d.yields) : null,
+        worstYield: d.yields.length ? Math.min(...d.yields) : null,
+      }))
+      .sort((a, b) => (b.avgYield ?? -Infinity) - (a.avgYield ?? -Infinity))
+  }
+
   const stats = calculateStats()
   const chartData = getChartData()
   const symbolData = getSymbolData()
   const winLossData = getWinLossData()
+  const optionYieldData = getOptionYieldData()
+  const sortedYieldData = [...optionYieldData].sort((a, b) => {
+    const { col, dir } = yieldSort
+    const av = a[col] ?? (col === 'symbol' ? '' : -Infinity)
+    const bv = b[col] ?? (col === 'symbol' ? '' : -Infinity)
+    if (col === 'symbol') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+    return dir === 'asc' ? av - bv : bv - av
+  })
 
   // valueColor: explicit text colour; falls back to green/red for numbers, 'inherit' for strings
   const StatCard = ({ title, value, icon, color = 'blue', valueColor }) => {
@@ -481,12 +524,13 @@ const Statistics = () => {
         </Grid>
 
         {/* Performance tables — tabbed to keep the page compact */}
-        {(symbolData.length > 0 || getMonthlyData().length > 0) && (
+        {(symbolData.length > 0 || getMonthlyData().length > 0 || optionYieldData.length > 0) && (
           <Card withBorder p="xl">
             <Tabs value={tableTab} onChange={updateTableTab} keepMounted={false}>
               <Tabs.List mb="md">
                 <Tabs.Tab value="symbol">Performance by Symbol</Tabs.Tab>
                 <Tabs.Tab value="monthly">Monthly Breakdown</Tabs.Tab>
+                <Tabs.Tab value="optionYield">Option Yield %</Tabs.Tab>
               </Tabs.List>
 
               <Tabs.Panel value="symbol">
@@ -571,6 +615,60 @@ const Statistics = () => {
                     <Text c="dimmed" ta="center" py="xl">No completed trades yet</Text>
                   )
                 })()}
+              </Tabs.Panel>
+
+              <Tabs.Panel value="optionYield">
+                {optionYieldData.length > 0 ? (
+                  <Table striped highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        {[
+                          { col: 'symbol',       label: 'Ticker'        },
+                          { col: 'count',        label: 'Trades'        },
+                          { col: 'totalPremium', label: 'Total Premium' },
+                          { col: 'avgYield',     label: 'Avg Yield %'   },
+                          { col: 'bestYield',    label: 'Best Yield'    },
+                          { col: 'worstYield',   label: 'Worst Yield'   },
+                        ].map(({ col, label }) => (
+                          <Table.Th key={col} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                            <UnstyledButton onClick={() => toggleYieldSort(col)}>
+                              <Group gap={4} wrap="nowrap">
+                                <Text fw={600} size="sm">{label}</Text>
+                                <YieldSortIcon col={col} />
+                              </Group>
+                            </UnstyledButton>
+                          </Table.Th>
+                        ))}
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {sortedYieldData.map(row => (
+                        <Table.Tr key={row.symbol}>
+                          <Table.Td><Text fw={700}>{row.symbol}</Text></Table.Td>
+                          <Table.Td>{row.count}</Table.Td>
+                          <Table.Td><Text fw={500} c="green">{formatCurrency(row.totalPremium)}</Text></Table.Td>
+                          <Table.Td>
+                            {row.avgYield != null
+                              ? <Text fw={600} c={row.avgYield >= 3 ? 'green' : row.avgYield >= 1 ? 'yellow' : 'dimmed'}>{row.avgYield.toFixed(2)}%</Text>
+                              : <Text c="dimmed">—</Text>}
+                          </Table.Td>
+                          <Table.Td>
+                            {row.bestYield != null
+                              ? <Text c="green">{row.bestYield.toFixed(2)}%</Text>
+                              : <Text c="dimmed">—</Text>}
+                          </Table.Td>
+                          <Table.Td>
+                            {row.worstYield != null
+                              ? <Text c={row.worstYield >= 1 ? 'yellow' : 'dimmed'}>{row.worstYield.toFixed(2)}%</Text>
+                              : <Text c="dimmed">—</Text>}
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                ) : (
+                  <Text c="dimmed" ta="center" py="xl">No covered call or short put history yet</Text>
+                )}
               </Tabs.Panel>
             </Tabs>
           </Card>

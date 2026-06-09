@@ -44,7 +44,7 @@ import { notifications } from '@mantine/notifications'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import apiClient from '../api'
 import { useTrades } from '../context/TradesContext'
-import { formatCurrency, formatDate, getProfitColor, toInputDate, parseLocalDate } from '../utils/format'
+import { formatCurrency, formatDate, getProfitColor, toInputDate } from '../utils/format'
 import { tradeProfit } from '../utils/tradeProfit'
 
 const VALID_STATUSES = ['all', 'open', 'closed']
@@ -420,7 +420,7 @@ const TradingNotes = () => {
     return trade.sell_price && trade.sell_date ? 'closed' : 'open'
   }
 
-  const getTimeRangeCutoff = () => {
+  const getTimeRangeCutoffStr = () => {
     if (timeRange === 'all') return null
     const now = new Date()
     const map = {
@@ -432,17 +432,22 @@ const TradingNotes = () => {
       '6months': new Date(now.getFullYear(), now.getMonth() - 6,  now.getDate()),
       '1year':   new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()),
     }
-    return map[timeRange] ?? null
+    const d = map[timeRange]
+    if (!d) return null
+    // Return as "YYYY-MM-DD" string — direct string comparison with buy_date avoids timezone issues
+    return d.toLocaleDateString('en-CA')
   }
+
+  const cutoffStr = getTimeRangeCutoffStr()
 
   const filteredTrades = (trades || [])
     .filter(trade => {
       const matchesSearch = trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (trade.notes && trade.notes.toLowerCase().includes(searchTerm.toLowerCase()))
       const matchesFilter = filterStatus === 'all' || getStatus(trade) === filterStatus
-      const cutoff = getTimeRangeCutoff()
-      const tradeDate = parseLocalDate(trade.buy_date)
-      const matchesTime = !cutoff || (tradeDate && tradeDate >= cutoff)
+      // Compare as YYYY-MM-DD strings — works correctly without any timezone conversion
+      const tradeDateStr = String(trade.buy_date ?? '').slice(0, 10)
+      const matchesTime = !cutoffStr || tradeDateStr >= cutoffStr
       return matchesSearch && matchesFilter && matchesTime
     })
     .sort((a, b) => {
@@ -656,39 +661,36 @@ const TradingNotes = () => {
 
         {/* Filters */}
         <Card withBorder p="md">
-          <Grid>
-            <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-              <TextInput
-                placeholder="Search by symbol or notes..."
-                leftSection={<IconSearch size={16} />}
-                value={searchTerm}
-                onChange={(e) => updateSearch(e.target.value)}
-              />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-              <Menu>
-                <Menu.Target>
-                  <Button variant="outline" leftSection={<IconFilter size={16} />}>
-                    Filter: {filterStatus === 'all' ? 'All Trades' : filterStatus === 'open' ? 'Open Positions' : 'Closed Positions'}
-                  </Button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Item onClick={() => updateStatus('all')}>All Trades</Menu.Item>
-                  <Menu.Item onClick={() => updateStatus('open')}>Open Positions</Menu.Item>
-                  <Menu.Item onClick={() => updateStatus('closed')}>Closed Positions</Menu.Item>
-                </Menu.Dropdown>
-              </Menu>
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+          <Group gap="sm" wrap="wrap" justify="space-between">
+            <TextInput
+              placeholder="Search by symbol or notes..."
+              leftSection={<IconSearch size={16} />}
+              value={searchTerm}
+              onChange={(e) => updateSearch(e.target.value)}
+              w={240}
+            />
+            <Menu>
+              <Menu.Target>
+                <Button variant="outline" leftSection={<IconFilter size={16} />}>
+                  {filterStatus === 'all' ? 'All Trades' : filterStatus === 'open' ? 'Open' : 'Closed'}
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={() => updateStatus('all')}>All Trades</Menu.Item>
+                <Menu.Item onClick={() => updateStatus('open')}>Open Positions</Menu.Item>
+                <Menu.Item onClick={() => updateStatus('closed')}>Closed Positions</Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+            <Group gap="sm" ml="auto">
               <Select
                 leftSection={<IconCalendarTime size={16} />}
                 value={timeRange}
                 onChange={(v) => updateTimeRange(v ?? 'all')}
                 data={TIME_RANGES}
-                w={170}
+                w={160}
               />
-            </Grid.Col>
-          </Grid>
+            </Group>
+          </Group>
         </Card>
 
         {/* Trades Table */}

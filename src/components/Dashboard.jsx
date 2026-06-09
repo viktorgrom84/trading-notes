@@ -51,6 +51,8 @@ const Dashboard = ({ user }) => {
     winRate: 0,
     avgProfit: 0,
   })
+  const [statsLoading, setStatsLoading]       = useState(true)
+  const [settingsLoading, setSettingsLoading] = useState(true)
   const [performanceTarget, setPerformanceTarget] = useState(0)
   const [currentPerformance, setCurrentPerformance] = useState(0)
   const [showTargetModal, setShowTargetModal] = useState(false)
@@ -60,17 +62,19 @@ const Dashboard = ({ user }) => {
 
   const loadStatistics = useCallback(async () => {
     try {
+      setStatsLoading(true)
       const statistics = await apiClient.getStatistics()
       setStats(statistics)
     } catch (error) {
       console.error('Error loading statistics:', error)
+    } finally {
+      setStatsLoading(false)
     }
   }, [])
 
   useEffect(() => {
     loadStatistics()
-    loadPerformanceTarget()
-    loadYearlyGoal()
+    Promise.all([loadPerformanceTarget(), loadYearlyGoal()]).finally(() => setSettingsLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadStatistics])
 
@@ -217,7 +221,7 @@ const Dashboard = ({ user }) => {
     })
   }, [recentTrades])
 
-  if (loading) {
+  if (loading || statsLoading || settingsLoading) {
     return (
       <Container size="xl" py="xl">
         <Stack gap="xl">

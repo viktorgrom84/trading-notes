@@ -3,12 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Card, Table, Badge, Group, Stack,
   ThemeIcon, Center, Skeleton, SimpleGrid, Tooltip, Alert, Tabs, ActionIcon,
-  Modal, Button, Divider,
+  Modal, Button, Divider, UnstyledButton, TextInput,
 } from '@mantine/core'
 import {
   IconChartCandle, IconCalendarEvent,
   IconCurrencyDollar, IconInfoCircle, IconHistory, IconClock, IconCalendarStats,
-  IconExternalLink, IconRefresh, IconCheck,
+  IconExternalLink, IconRefresh, IconCheck, IconSelector, IconChevronUp, IconChevronDown,
+  IconFlame, IconPlus, IconX,
 } from '@tabler/icons-react'
 import { useTrades } from '../context/TradesContext'
 import { formatCurrency, formatDate, getProfitColor, getLocalDateString } from '../utils/format'
@@ -52,6 +53,14 @@ function expiryBadge(days) {
   if (days <= 5)     return <Badge color="orange" variant="filled">{days}td left</Badge>
   if (days <= 21)    return <Badge color="yellow" variant="light">{days}td left</Badge>
   return                    <Badge color="gray"   variant="light">{days}td left</Badge>
+}
+
+function calcPremiumYield(trade) {
+  const premium   = parseFloat(trade.buy_price)
+  const avg       = parseFloat(trade.avg_price)
+  const contracts = parseInt(trade.shares) || 1
+  if (!trade.avg_price || isNaN(avg) || avg <= 0 || isNaN(premium)) return null
+  return (premium / (avg * contracts * 100)) * 100
 }
 
 function calcProfitIfAssigned(trade) {
@@ -148,6 +157,49 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
   }, 0)
   const isUrgent = days !== null && days >= 0 && days <= 5
 
+  const [sort, setSort] = useState({ col: 'symbol', dir: 'asc' })
+  const toggleSort = (col) => setSort(s => ({
+    col,
+    dir: s.col === col ? (s.dir === 'asc' ? 'desc' : 'asc') : 'asc',
+  }))
+  const SortIcon = ({ col }) => {
+    if (sort.col !== col) return <IconSelector size={13} style={{ opacity: 0.35 }} />
+    return sort.dir === 'asc' ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />
+  }
+
+  const sortedGroup = [...group].sort((a, b) => {
+    const { col, dir } = sort
+    let av, bv
+    switch (col) {
+      case 'symbol':          av = a.symbol ?? '';                         bv = b.symbol ?? '';                         break
+      case 'option_type':     av = a.label  ?? '';                         bv = b.label  ?? '';                         break
+      case 'shares':          av = parseInt(a.shares)  || 0;               bv = parseInt(b.shares)  || 0;               break
+      case 'strike_price':    av = parseFloat(a.strike_price) || 0;        bv = parseFloat(b.strike_price) || 0;        break
+      case 'avg_price':       av = parseFloat(a.avg_price) || 0;           bv = parseFloat(b.avg_price) || 0;           break
+      case 'buy_price':       av = parseFloat(a.buy_price) || 0;           bv = parseFloat(b.buy_price) || 0;           break
+      case 'yield':           av = a.yield ?? -Infinity;                   bv = b.yield ?? -Infinity;                   break
+      case 'buy_date':        av = a.buy_date ?? '';                       bv = b.buy_date ?? '';                       break
+      case 'profitIfAssigned':av = a.profitIfAssigned ?? -Infinity;        bv = b.profitIfAssigned ?? -Infinity;        break
+      default:                av = 0; bv = 0
+    }
+    if (typeof av === 'string') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+    return dir === 'asc' ? av - bv : bv - av
+  })
+
+  const Th = ({ col, label, tooltip }) => (
+    <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }}>
+      <UnstyledButton onClick={() => toggleSort(col)}>
+        <Group gap={4} wrap="nowrap">
+          {tooltip
+            ? <Tooltip label={tooltip} withArrow><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Text fw={600} size="sm">{label}</Text><IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} /></span></Tooltip>
+            : <Text fw={600} size="sm">{label}</Text>
+          }
+          <SortIcon col={col} />
+        </Group>
+      </UnstyledButton>
+    </Table.Th>
+  )
+
   return (
     <Card
       withBorder
@@ -177,18 +229,11 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
       <Table striped highlightOnHover>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Ticker</Table.Th>
-            <Table.Th>Type</Table.Th>
-            <Table.Th>Contracts</Table.Th>
-            <Table.Th>Strike</Table.Th>
-            <Table.Th>
-              <Group gap={4}>
-                Avg Price
-                <Tooltip label="Your average cost basis per share of the underlying stock" withArrow>
-                  <IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} />
-                </Tooltip>
-              </Group>
-            </Table.Th>
+            <Th col="symbol"          label="Ticker" />
+            <Th col="option_type"     label="Type" />
+            <Th col="shares"          label="Contracts" />
+            <Th col="strike_price"    label="Strike" />
+            <Th col="avg_price"       label="Avg Price"          tooltip="Your average cost basis per share of the underlying stock" />
             <Table.Th>Current</Table.Th>
             <Table.Th>
               <Group gap={4}>
@@ -198,21 +243,15 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
                 </Tooltip>
               </Group>
             </Table.Th>
-            <Table.Th>Premium</Table.Th>
-            <Table.Th>Opened</Table.Th>
-            <Table.Th>
-              <Group gap={4}>
-                Profit if Assigned
-                <Tooltip label="(Strike − Avg Price) × Contracts × 100" withArrow>
-                  <IconInfoCircle size={14} style={{ opacity: 0.5, cursor: 'help' }} />
-                </Tooltip>
-              </Group>
-            </Table.Th>
+            <Th col="buy_price"       label="Premium" />
+            <Th col="yield"           label="Yield %"            tooltip="Premium ÷ (Avg Price × Contracts × 100) — return on capital deployed" />
+            <Th col="buy_date"        label="Opened" />
+            <Th col="profitIfAssigned"label="Profit if Assigned" tooltip="(Strike − Avg Price) × Contracts × 100" />
             <Table.Th />
-                  </Table.Tr>
+          </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {group.map(opt => (
+          {sortedGroup.map(opt => (
             <Table.Tr
               key={opt.id}
               style={assignedIds?.has(opt.id)
@@ -270,6 +309,12 @@ function ExpiryGroup({ expDate, days, options: group, navigate, quotes, quotesLo
               </Table.Td>
               <Table.Td>
                 <Text c="green" fw={500}>{formatCurrency(opt.buy_price)}</Text>
+              </Table.Td>
+              <Table.Td>
+                {opt.yield != null
+                  ? <Text fw={600} c={opt.yield >= 3 ? 'green' : opt.yield >= 1 ? 'yellow' : 'dimmed'}>{opt.yield.toFixed(2)}%</Text>
+                  : <Text c="dimmed" size="sm">—</Text>
+                }
               </Table.Td>
               <Table.Td>
                 <Text size="sm" c="dimmed">{formatDate(opt.buy_date)}</Text>
@@ -349,7 +394,7 @@ function groupByExpiry(options) {
 }
 
 // ─── main component ────────────────────────────────────────────────────────────
-const VALID_TABS = ['current', 'future', 'past']
+const VALID_TABS = ['current', 'future', 'past', 'performance', 'volatility']
 
 export default function OpenOptions() {
   const { trades, loading } = useTrades()
@@ -358,6 +403,14 @@ export default function OpenOptions() {
   // quotes: { AAPL: { price: 185.5, hv: 35 }, ... }
   const [quotes, setQuotes]               = useState({})
   const [quotesLoading, setQuotesLoading] = useState(false)
+  // volatility watchlist — tickers added manually, persisted in localStorage
+  const [watchlist, setWatchlist] = useState(() => {
+    try {
+      const saved = localStorage.getItem('volWatchlist')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
+  const [watchlistInput, setWatchlistInput] = useState('')
   // assignment — stored in localStorage so it survives navigation
   const [assignTarget, setAssignTarget] = useState(null)
   const [assignedIds, setAssignedIds]   = useState(() => {
@@ -390,15 +443,33 @@ export default function OpenOptions() {
     }
   }
 
+  const addToWatchlist = (raw) => {
+    const sym = raw.trim().toUpperCase()
+    if (!sym || watchlist.includes(sym)) return
+    const next = [...watchlist, sym]
+    setWatchlist(next)
+    try { localStorage.setItem('volWatchlist', JSON.stringify(next)) } catch {}
+    setWatchlistInput('')
+    fetchQuotes([...new Set([
+      ...trades.map(t => t.symbol?.trim().toUpperCase()).filter(Boolean),
+      ...next,
+    ])])
+  }
+
+  const removeFromWatchlist = (sym) => {
+    const next = watchlist.filter(s => s !== sym)
+    setWatchlist(next)
+    try { localStorage.setItem('volWatchlist', JSON.stringify(next)) } catch {}
+  }
+
   useEffect(() => {
     if (loading) return
-    const syms = [...new Set(
-      trades
-        .filter(t => t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
-        .map(t => t.symbol?.trim().toUpperCase())
-        .filter(Boolean)
-    )]
+    const syms = [...new Set([
+      ...trades.map(t => t.symbol?.trim().toUpperCase()).filter(Boolean),
+      ...watchlist,
+    ])]
     if (syms.length) fetchQuotes(syms)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, trades])
 
   // ── assignment ────────────────────────────────────────────────────────────
@@ -421,6 +492,7 @@ export default function OpenOptions() {
         ...t,
         days:             daysToExpiry(t.expiration_date),
         profitIfAssigned: calcProfitIfAssigned(t),
+        yield:            calcPremiumYield(t),
         label:            t.option_type === 'call' ? 'Covered Call' : 'Cash-Secured Put',
       }))
       .sort((a, b) => {
@@ -439,6 +511,94 @@ export default function OpenOptions() {
 
     return { current, future, past, totalPremium }
   }, [trades])
+
+  const [perfSort, setPerfSort] = useState({ col: 'avgYield', dir: 'desc' })
+  const togglePerfSort = (col) => setPerfSort(s => ({
+    col,
+    dir: s.col === col ? (s.dir === 'asc' ? 'desc' : 'asc') : 'desc',
+  }))
+  const PerfSortIcon = ({ col }) => {
+    if (perfSort.col !== col) return <IconSelector size={14} style={{ opacity: 0.4 }} />
+    return perfSort.dir === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />
+  }
+
+  const performanceData = useMemo(() => {
+    const shortOptions = trades.filter(t => t.trade_type === 'option' && t.position_type === 'short')
+    const byTicker = {}
+    for (const t of shortOptions) {
+      const sym = t.symbol
+      if (!byTicker[sym]) byTicker[sym] = { symbol: sym, count: 0, totalPremium: 0, yields: [] }
+      byTicker[sym].count       += 1
+      byTicker[sym].totalPremium += parseFloat(t.buy_price) || 0
+      const y = calcPremiumYield(t)
+      if (y !== null) byTicker[sym].yields.push(y)
+    }
+    return Object.values(byTicker)
+      .map(d => ({
+        ...d,
+        avgYield:   d.yields.length ? d.yields.reduce((s, y) => s + y, 0) / d.yields.length : null,
+        bestYield:  d.yields.length ? Math.max(...d.yields) : null,
+        worstYield: d.yields.length ? Math.min(...d.yields) : null,
+      }))
+      .sort((a, b) => (b.avgYield ?? -Infinity) - (a.avgYield ?? -Infinity))
+  }, [trades])
+
+  const sortedPerformanceData = useMemo(() => {
+    const { col, dir } = perfSort
+    return [...performanceData].sort((a, b) => {
+      const av = a[col] ?? (col === 'symbol' ? '' : -Infinity)
+      const bv = b[col] ?? (col === 'symbol' ? '' : -Infinity)
+      if (col === 'symbol') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+      return dir === 'asc' ? av - bv : bv - av
+    })
+  }, [performanceData, perfSort])
+
+  const [volSort, setVolSort] = useState({ col: 'hv', dir: 'desc' })
+  const toggleVolSort = (col) => setVolSort(s => ({
+    col,
+    dir: s.col === col ? (s.dir === 'asc' ? 'desc' : 'asc') : 'desc',
+  }))
+  const VolSortIcon = ({ col }) => {
+    if (volSort.col !== col) return <IconSelector size={14} style={{ opacity: 0.4 }} />
+    return volSort.dir === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />
+  }
+
+  const portfolioSymbols = useMemo(() =>
+    new Set(trades.map(t => t.symbol?.trim().toUpperCase()).filter(Boolean))
+  , [trades])
+
+  const volatilityData = useMemo(() => {
+    const tradeCountBySymbol = {}
+    const openCountBySymbol  = {}
+    for (const t of trades) {
+      const sym = t.symbol?.trim().toUpperCase()
+      if (!sym) continue
+      tradeCountBySymbol[sym] = (tradeCountBySymbol[sym] || 0) + 1
+      if (t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
+        openCountBySymbol[sym] = (openCountBySymbol[sym] || 0) + 1
+    }
+    return Object.entries(quotes)
+      .map(([sym, q]) => ({
+        symbol:      sym,
+        price:       typeof q === 'object' ? q.price : (typeof q === 'number' ? q : null),
+        hv:          typeof q === 'object' ? q.hv    : null,
+        totalTrades: tradeCountBySymbol[sym] ?? 0,
+        openOptions: openCountBySymbol[sym]  ?? 0,
+        inPortfolio: portfolioSymbols.has(sym),
+        watchlisted: watchlist.includes(sym),
+      }))
+      .filter(r => r.hv != null)
+  }, [quotes, trades, watchlist, portfolioSymbols])
+
+  const sortedVolatilityData = useMemo(() => {
+    const { col, dir } = volSort
+    return [...volatilityData].sort((a, b) => {
+      const av = a[col] ?? (col === 'symbol' ? '' : -Infinity)
+      const bv = b[col] ?? (col === 'symbol' ? '' : -Infinity)
+      if (col === 'symbol') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+      return dir === 'asc' ? av - bv : bv - av
+    })
+  }, [volatilityData, volSort])
 
   if (loading) {
     return (
@@ -552,6 +712,12 @@ export default function OpenOptions() {
             >
               Past
             </Tabs.Tab>
+            <Tabs.Tab value="performance" leftSection={<IconCurrencyDollar size={16} />}>
+              Performance
+            </Tabs.Tab>
+            <Tabs.Tab value="volatility" leftSection={<IconFlame size={16} />}>
+              Volatility
+            </Tabs.Tab>
           </Tabs.List>
 
           {/* Current week */}
@@ -581,6 +747,204 @@ export default function OpenOptions() {
                 ? groupByExpiry(past).map(g => <ExpiryGroup key={g.expDate ?? 'none'} {...g} navigate={navigate} quotes={quotes} quotesLoading={quotesLoading} onAssign={setAssignTarget} assignedIds={assignedIds} />)
                 : <EmptyState message="No past expirations" />
               }
+            </Stack>
+          </Tabs.Panel>
+
+          {/* Performance */}
+          <Tabs.Panel value="performance">
+            {performanceData.length > 0 ? (
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    {[
+                      { col: 'symbol',       label: 'Ticker'        },
+                      { col: 'count',        label: 'Trades'        },
+                      { col: 'totalPremium', label: 'Total Premium' },
+                      { col: 'avgYield',     label: 'Avg Yield %'   },
+                      { col: 'bestYield',    label: 'Best Yield'    },
+                      { col: 'worstYield',   label: 'Worst Yield'   },
+                    ].map(({ col, label }) => (
+                      <Table.Th key={col} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        <UnstyledButton onClick={() => togglePerfSort(col)}>
+                          <Group gap={4} wrap="nowrap">
+                            <Text fw={600} size="sm">{label}</Text>
+                            <PerfSortIcon col={col} />
+                          </Group>
+                        </UnstyledButton>
+                      </Table.Th>
+                    ))}
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {sortedPerformanceData.map(row => (
+                    <Table.Tr key={row.symbol}>
+                      <Table.Td><Text fw={700}>{row.symbol}</Text></Table.Td>
+                      <Table.Td>{row.count}</Table.Td>
+                      <Table.Td><Text fw={500} c="green">{formatCurrency(row.totalPremium)}</Text></Table.Td>
+                      <Table.Td>
+                        {row.avgYield != null
+                          ? <Text fw={600} c={row.avgYield >= 3 ? 'green' : row.avgYield >= 1 ? 'yellow' : 'dimmed'}>{row.avgYield.toFixed(2)}%</Text>
+                          : <Text c="dimmed">—</Text>}
+                      </Table.Td>
+                      <Table.Td>
+                        {row.bestYield != null
+                          ? <Text c="green">{row.bestYield.toFixed(2)}%</Text>
+                          : <Text c="dimmed">—</Text>}
+                      </Table.Td>
+                      <Table.Td>
+                        {row.worstYield != null
+                          ? <Text c={row.worstYield >= 1 ? 'yellow' : 'dimmed'}>{row.worstYield.toFixed(2)}%</Text>
+                          : <Text c="dimmed">—</Text>}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            ) : (
+              <EmptyState message="No covered call history yet" />
+            )}
+          </Tabs.Panel>
+
+          {/* Volatility */}
+          <Tabs.Panel value="volatility">
+            <Stack gap="md">
+              {/* Watchlist input */}
+              <Card withBorder p="md">
+                <Text size="sm" fw={600} mb="xs">Add ticker to watchlist</Text>
+                <Group gap="sm" align="flex-end">
+                  <TextInput
+                    placeholder="e.g. NVDA, TSLA, SPY…"
+                    value={watchlistInput}
+                    onChange={e => setWatchlistInput(e.currentTarget.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter') addToWatchlist(watchlistInput) }}
+                    style={{ flex: 1 }}
+                    size="sm"
+                  />
+                  <Button
+                    size="sm"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={() => addToWatchlist(watchlistInput)}
+                    disabled={!watchlistInput.trim()}
+                  >
+                    Add
+                  </Button>
+                </Group>
+                {watchlist.length > 0 && (
+                  <Group gap="xs" mt="sm">
+                    {watchlist.map(sym => (
+                      <Badge
+                        key={sym}
+                        variant="light"
+                        color="violet"
+                        rightSection={
+                          <ActionIcon
+                            size="xs"
+                            variant="transparent"
+                            color="violet"
+                            onClick={() => removeFromWatchlist(sym)}
+                          >
+                            <IconX size={10} />
+                          </ActionIcon>
+                        }
+                      >
+                        {sym}
+                      </Badge>
+                    ))}
+                  </Group>
+                )}
+              </Card>
+
+              {quotesLoading ? (
+                <Stack gap="sm">
+                  {[...Array(5)].map((_, i) => <Skeleton key={i} height={40} radius="sm" />)}
+                </Stack>
+              ) : sortedVolatilityData.length > 0 ? (
+                <>
+                  <Group gap="xs">
+                    <Badge color="green"  variant="light">≥ 60% elevated</Badge>
+                    <Badge color="yellow" variant="light">40–59% moderate</Badge>
+                    <Badge color="gray"   variant="light">&lt; 40% low</Badge>
+                    <Text size="xs" c="dimmed" ml="auto">Higher HV = more premium available when selling options</Text>
+                  </Group>
+                  <Table striped highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        {[
+                          { col: 'symbol',      label: 'Ticker'        },
+                          { col: 'hv',          label: '30d HV %'      },
+                          { col: 'price',       label: 'Current Price' },
+                          { col: 'openOptions', label: 'Open Options'  },
+                          { col: 'totalTrades', label: 'Total Trades'  },
+                        ].map(({ col, label }) => (
+                          <Table.Th key={col} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                            <UnstyledButton onClick={() => toggleVolSort(col)}>
+                              <Group gap={4} wrap="nowrap">
+                                <Text fw={600} size="sm">{label}</Text>
+                                <VolSortIcon col={col} />
+                              </Group>
+                            </UnstyledButton>
+                          </Table.Th>
+                        ))}
+                        <Table.Th />
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {sortedVolatilityData.map(row => {
+                        const hvColor = row.hv >= 60 ? 'green' : row.hv >= 40 ? 'yellow' : 'dimmed'
+                        return (
+                          <Table.Tr key={row.symbol}>
+                            <Table.Td>
+                              <Group gap={6}>
+                                <Text fw={700}>{row.symbol}</Text>
+                                {row.watchlisted && !row.inPortfolio && (
+                                  <Badge color="violet" variant="dot" size="xs">watchlist</Badge>
+                                )}
+                              </Group>
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap={6}>
+                                <Text fw={700} c={hvColor}>{row.hv}%</Text>
+                                {row.hv >= 60 && <IconFlame size={14} color="var(--mantine-color-green-5)" />}
+                              </Group>
+                            </Table.Td>
+                            <Table.Td>
+                              {row.price != null
+                                ? <Text fw={500}>${row.price.toFixed(2)}</Text>
+                                : <Text c="dimmed">—</Text>}
+                            </Table.Td>
+                            <Table.Td>
+                              {row.openOptions > 0
+                                ? <Badge color="blue" variant="light" size="sm">{row.openOptions} open</Badge>
+                                : <Text c="dimmed" size="sm">—</Text>}
+                            </Table.Td>
+                            <Table.Td>
+                              {row.inPortfolio
+                                ? <Text c="dimmed">{row.totalTrades}</Text>
+                                : <Text c="dimmed" size="xs">—</Text>}
+                            </Table.Td>
+                            <Table.Td>
+                              {row.watchlisted && (
+                                <Tooltip label="Remove from watchlist" withArrow>
+                                  <ActionIcon
+                                    size="xs"
+                                    variant="subtle"
+                                    color="gray"
+                                    onClick={() => removeFromWatchlist(row.symbol)}
+                                  >
+                                    <IconX size={12} />
+                                  </ActionIcon>
+                                </Tooltip>
+                              )}
+                            </Table.Td>
+                          </Table.Tr>
+                        )
+                      })}
+                    </Table.Tbody>
+                  </Table>
+                </>
+              ) : (
+                <EmptyState message="Add tickers to your watchlist or open some options positions" />
+              )}
             </Stack>
           </Tabs.Panel>
         </Tabs>
