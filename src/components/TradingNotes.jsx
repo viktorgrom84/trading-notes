@@ -36,6 +36,7 @@ import {
   IconTrendingUp,
   IconTrendingDown,
   IconMinus,
+  IconCalendarTime,
 } from '@tabler/icons-react'
 import { useForm } from '@mantine/form'
 import { useDisclosure } from '@mantine/hooks'
@@ -43,10 +44,22 @@ import { notifications } from '@mantine/notifications'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import apiClient from '../api'
 import { useTrades } from '../context/TradesContext'
-import { formatCurrency, formatDate, getProfitColor, toInputDate } from '../utils/format'
+import { formatCurrency, formatDate, getProfitColor, toInputDate, parseLocalDate } from '../utils/format'
 import { tradeProfit } from '../utils/tradeProfit'
 
 const VALID_STATUSES = ['all', 'open', 'closed']
+
+const TIME_RANGES = [
+  { value: 'all',     label: 'All Time'  },
+  { value: '1day',    label: 'Today'     },
+  { value: '3days',   label: '3 Days'    },
+  { value: '1week',   label: '1 Week'    },
+  { value: '1month',  label: '1 Month'   },
+  { value: '3months', label: '3 Months'  },
+  { value: '6months', label: '6 Months'  },
+  { value: '1year',   label: '1 Year'    },
+]
+const VALID_TIME_RANGES = TIME_RANGES.map(r => r.value)
 
 const TradingNotes = () => {
   const location = useLocation()
@@ -67,6 +80,14 @@ const TradingNotes = () => {
   const updateStatus = (s) => {
     setFilterStatus(s)
     setSearchParams(p => { const n = new URLSearchParams(p); s !== 'all' ? n.set('status', s) : n.delete('status'); return n }, { replace: true })
+  }
+
+  const [timeRange, setTimeRange] = useState(() =>
+    VALID_TIME_RANGES.includes(searchParams.get('range')) ? searchParams.get('range') : 'all'
+  )
+  const updateTimeRange = (r) => {
+    setTimeRange(r)
+    setSearchParams(p => { const n = new URLSearchParams(p); r !== 'all' ? n.set('range', r) : n.delete('range'); return n }, { replace: true })
   }
   const [opened, { open, close }] = useDisclosure(false)
   const [editingTrade, setEditingTrade] = useState(null)
@@ -399,12 +420,30 @@ const TradingNotes = () => {
     return trade.sell_price && trade.sell_date ? 'closed' : 'open'
   }
 
+  const getTimeRangeCutoff = () => {
+    if (timeRange === 'all') return null
+    const now = new Date()
+    const map = {
+      '1day':    new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      '3days':   new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2),
+      '1week':   new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6),
+      '1month':  new Date(now.getFullYear(), now.getMonth() - 1,  now.getDate()),
+      '3months': new Date(now.getFullYear(), now.getMonth() - 3,  now.getDate()),
+      '6months': new Date(now.getFullYear(), now.getMonth() - 6,  now.getDate()),
+      '1year':   new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()),
+    }
+    return map[timeRange] ?? null
+  }
+
   const filteredTrades = (trades || [])
     .filter(trade => {
       const matchesSearch = trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (trade.notes && trade.notes.toLowerCase().includes(searchTerm.toLowerCase()))
       const matchesFilter = filterStatus === 'all' || getStatus(trade) === filterStatus
-      return matchesSearch && matchesFilter
+      const cutoff = getTimeRangeCutoff()
+      const tradeDate = parseLocalDate(trade.buy_date)
+      const matchesTime = !cutoff || (tradeDate && tradeDate >= cutoff)
+      return matchesSearch && matchesFilter && matchesTime
     })
     .sort((a, b) => {
       // Sort by entry date (buy_date) in descending order (newest first)
@@ -423,7 +462,7 @@ const TradingNotes = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, filterStatus, pageSize])
+  }, [searchTerm, filterStatus, timeRange, pageSize])
 
   // Helper functions for table display
   const getEntryPrice = (trade) => {
@@ -639,6 +678,15 @@ const TradingNotes = () => {
                   <Menu.Item onClick={() => updateStatus('closed')}>Closed Positions</Menu.Item>
                 </Menu.Dropdown>
               </Menu>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+              <Select
+                leftSection={<IconCalendarTime size={16} />}
+                value={timeRange}
+                onChange={(v) => updateTimeRange(v ?? 'all')}
+                data={TIME_RANGES}
+                w={170}
+              />
             </Grid.Col>
           </Grid>
         </Card>
