@@ -311,6 +311,48 @@ describe('computeAccumulationScore', () => {
     const sumPts = breakdown.reduce((s, b) => s + b.pts, 0)
     expect(score).toBe(sumPts)
   })
+
+  it('pcRatio null is ignored (no breakdown entry)', () => {
+    const { score, breakdown } = computeAccumulationScore({ ...base, pcRatio: null })
+    expect(score).toBe(0)
+    expect(breakdown.length).toBe(0)
+  })
+
+  it('pcRatio < 0.50 gives 15 pts (strong)', () => {
+    const { score, breakdown } = computeAccumulationScore({ ...base, pcRatio: 0.12 })
+    expect(score).toBe(15)
+    expect(breakdown[0].pts).toBe(15)
+    expect(breakdown[0].level).toBe('strong')
+  })
+
+  it('pcRatio 0.50–0.69 gives 10 pts (good)', () => {
+    const { score, breakdown } = computeAccumulationScore({ ...base, pcRatio: 0.60 })
+    expect(score).toBe(10)
+    expect(breakdown[0].level).toBe('good')
+  })
+
+  it('pcRatio 0.70–0.89 gives 5 pts (mild)', () => {
+    const { score } = computeAccumulationScore({ ...base, pcRatio: 0.80 })
+    expect(score).toBe(5)
+  })
+
+  it('pcRatio 0.90–1.19 gives 0 pts (neutral)', () => {
+    const { score, breakdown } = computeAccumulationScore({ ...base, pcRatio: 1.05 })
+    expect(score).toBe(0)
+    expect(breakdown[0].level).toBe('none')
+  })
+
+  it('pcRatio >= 1.20 gives 0 pts (put-heavy)', () => {
+    const { score, breakdown } = computeAccumulationScore({ ...base, pcRatio: 1.50 })
+    expect(score).toBe(0)
+    expect(breakdown[0].level).toBe('none')
+  })
+
+  it('pcRatio + RSI together accumulate correctly', () => {
+    const { score } = computeAccumulationScore({ ...base, pcRatio: 0.30, rsi: 28 })
+    // P/C 0.30 → 15pts, RSI 28 → 22pts = 37
+    expect(score).toBe(37)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

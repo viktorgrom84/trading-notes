@@ -123,9 +123,17 @@ function _computeHV(closes) {
 }
 
 function _scoreAccumulation(signals) {
-  const { rsi, volumeRatio, pctFromHigh, hv, consecutiveRed, isGrinding, insiderBuy, buyback } = signals
+  const { rsi, volumeRatio, pctFromHigh, hv, consecutiveRed, isGrinding, insiderBuy, buyback, pcRatio } = signals
   let score = 0
   const breakdown = []
+  // ── Put/Call ratio (max 15 pts) ───────────────────────────────────────────────
+  if (pcRatio != null) {
+    if      (pcRatio < 0.50) { score += 15; breakdown.push({ label: `P/C ${pcRatio} — heavy call buying (very bullish)`, pts: 15, level: 'strong' }) }
+    else if (pcRatio < 0.70) { score += 10; breakdown.push({ label: `P/C ${pcRatio} — call-heavy flow (bullish)`,        pts: 10, level: 'good'   }) }
+    else if (pcRatio < 0.90) { score +=  5; breakdown.push({ label: `P/C ${pcRatio} — slight call preference`,           pts:  5, level: 'mild'   }) }
+    else if (pcRatio < 1.20) {              breakdown.push({ label: `P/C ${pcRatio} — neutral flow`,                     pts:  0, level: 'none'   }) }
+    else                     {              breakdown.push({ label: `P/C ${pcRatio} — put-heavy (bearish flow)`,          pts:  0, level: 'none'   }) }
+  }
   if (rsi != null) {
     if      (rsi < 25) { score += 25; breakdown.push({ label: `RSI ${rsi} — extreme oversold`,  pts: 25, level: 'strong' }) }
     else if (rsi < 30) { score += 22; breakdown.push({ label: `RSI ${rsi} — very oversold`,     pts: 22, level: 'strong' }) }
@@ -177,7 +185,7 @@ async function handleScanner(req, res) {
   const sym = (req.query.symbol || '').trim().toUpperCase()
   if (!sym) return res.status(400).json({ message: 'symbol query param required' })
 
-  const [yahooResult, insiderResult, buybackResult] = await Promise.allSettled([
+  const [yahooResult, insiderResult, buybackResult, optionsResult] = await Promise.allSettled([
     fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1y`,
       { headers: HEADERS }
@@ -189,6 +197,10 @@ async function handleScanner(req, res) {
     fetch(
       `https://efts.sec.gov/LATEST/search-index?q=%22${encodeURIComponent(sym)}%22+%22repurchase%22&forms=8-K&dateRange=custom&startdt=${_isoNDaysAgo(180)}`,
       { headers: { ...HEADERS, Accept: 'application/json' } }
+    ).then(r => r.json()),
+    fetch(
+      `https://api.nasdaq.com/api/quote/${encodeURIComponent(sym)}/option-chain?assetclass=stocks&limit=300&fromdate=all&todate=undefined&expirydate=undefined&optionType=call&money=all`,
+      { headers: { ...HEADERS, Accept: 'application/json,text/plain,*/*' } }
     ).then(r => r.json()),
   ])
 
@@ -224,9 +236,24 @@ async function handleScanner(req, res) {
   const insiderBuy = insiderResult.status === 'fulfilled' && (insiderResult.value?.hits?.total?.value ?? 0) > 0
   const buyback    = buybackResult.status  === 'fulfilled' && (buybackResult.value?.hits?.total?.value  ?? 0) > 0
 
+  // Compute P/C ratio from Nasdaq options chain
+  let pcRatio = null
+  let totalCallVol = 0, totalPutVol = 0
+  if (optionsResult.status === 'fulfilled') {
+    const rows = optionsResult.value?.data?.table?.rows ?? []
+    for (const r of rows) {
+      if (!r.expiryDate) continue // skip group header rows
+      const cv = parseInt((r.c_Volume  || '').replace(/[^0-9]/g, '') || '0') || 0
+      const pv = parseInt((r.p_Volume  || '').replace(/[^0-9]/g, '') || '0') || 0
+      totalCallVol += cv
+      totalPutVol  += pv
+    }
+    if (totalCallVol > 0) pcRatio = Math.round((totalPutVol / totalCallVol) * 100) / 100
+  }
+
   const { score, breakdown } = _scoreAccumulation({
     rsi, volumeRatio: volTrend.ratio, pctFromHigh, hv,
-    consecutiveRed, isGrinding: grind.isGrinding, insiderBuy, buyback,
+    consecutiveRed, isGrinding: grind.isGrinding, insiderBuy, buyback, pcRatio,
   })
 
   res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800')
@@ -237,6 +264,7 @@ async function handleScanner(req, res) {
     pctFromHigh, rsi, hv,
     volumeTrend: volTrend, consecutiveRed, grind,
     insiderBuy, buyback,
+    pcRatio, callVolume: totalCallVol, putVolume: totalPutVol,
     score, breakdown,
   })
 }

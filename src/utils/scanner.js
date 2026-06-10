@@ -161,14 +161,24 @@ export function computeHV(closes) {
  *   isGrinding: boolean,
  *   insiderBuy: boolean,
  *   buyback: boolean,
+ *   pcRatio: number|null,       // put volume / call volume (< 0.7 = bullish call flow)
  * }} signals
  *
  * @returns {{ score: number, breakdown: Array<{label, pts, level}> }}
  */
 export function computeAccumulationScore(signals) {
-  const { rsi, volumeRatio, pctFromHigh, hv, consecutiveRed, isGrinding, insiderBuy, buyback } = signals
+  const { rsi, volumeRatio, pctFromHigh, hv, consecutiveRed, isGrinding, insiderBuy, buyback, pcRatio } = signals
   let score = 0
   const breakdown = []
+
+  // ── Put/Call ratio (max 15 pts) ───────────────────────────────────────────────
+  if (pcRatio != null) {
+    if      (pcRatio < 0.50) { score += 15; breakdown.push({ label: `P/C ${pcRatio} — heavy call buying (very bullish)`, pts: 15, level: 'strong' }) }
+    else if (pcRatio < 0.70) { score += 10; breakdown.push({ label: `P/C ${pcRatio} — call-heavy flow (bullish)`,        pts: 10, level: 'good'   }) }
+    else if (pcRatio < 0.90) { score +=  5; breakdown.push({ label: `P/C ${pcRatio} — slight call preference`,           pts:  5, level: 'mild'   }) }
+    else if (pcRatio < 1.20) {              breakdown.push({ label: `P/C ${pcRatio} — neutral flow`,                     pts:  0, level: 'none'   }) }
+    else                     {              breakdown.push({ label: `P/C ${pcRatio} — put-heavy (bearish flow)`,          pts:  0, level: 'none'   }) }
+  }
 
   // ── RSI (max 25 pts) ────────────────────────────────────────────────────────
   if (rsi != null) {
