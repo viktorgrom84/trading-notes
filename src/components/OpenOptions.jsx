@@ -3,17 +3,18 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Container, Title, Text, Card, Table, Badge, Group, Stack,
   ThemeIcon, Center, Skeleton, SimpleGrid, Tooltip, Alert, Tabs, ActionIcon,
-  Modal, Button, Divider, UnstyledButton, TextInput,
+  Modal, Button, Divider, UnstyledButton, TextInput, Progress, RingProgress,
 } from '@mantine/core'
 import {
   IconChartCandle, IconCalendarEvent,
   IconCurrencyDollar, IconInfoCircle, IconHistory, IconClock, IconCalendarStats,
   IconExternalLink, IconRefresh, IconCheck, IconSelector, IconChevronUp, IconChevronDown,
-  IconFlame, IconPlus, IconX,
+  IconFlame, IconPlus, IconX, IconRadar, IconAlertCircle, IconTrendingUp,
 } from '@tabler/icons-react'
 import { useTrades } from '../context/TradesContext'
 import { formatCurrency, formatDate, getProfitColor, getLocalDateString } from '../utils/format'
 import { daysToExpiry, calcPremiumYield, calcProfitIfAssigned } from '../utils/options'
+import { scoreLabel } from '../utils/scanner'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -359,7 +360,7 @@ function groupByExpiry(options) {
 }
 
 // ─── main component ────────────────────────────────────────────────────────────
-const VALID_TABS = ['current', 'future', 'past', 'performance', 'volatility']
+const VALID_TABS = ['current', 'future', 'past', 'performance', 'volatility', 'scanner']
 
 export default function OpenOptions() {
   const { trades, loading } = useTrades()
@@ -561,6 +562,47 @@ export default function OpenOptions() {
       .filter(r => r.hv != null)
   }, [quotes, trades, watchlist, portfolioSymbols])
 
+  // ── Scanner ──────────────────────────────────────────────────────────────────
+  // scanResults: { [symbol]: { loading, error, data } }
+  const [scanResults, setScanResults]       = useState({})
+  const [scanTriggered, setScanTriggered]   = useState(false)
+
+  // Symbols to scan = watchlist + open options portfolio tickers
+  const scanSymbols = useMemo(() => {
+    const openSyms = trades
+      .filter(t => t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
+      .map(t => t.symbol?.trim().toUpperCase()).filter(Boolean)
+    return [...new Set([...watchlist, ...openSyms])]
+  }, [watchlist, trades])
+
+  const runScan = useCallback(async (symbols) => {
+    if (!symbols.length) return
+    // Reset — mark all as loading
+    setScanResults(Object.fromEntries(symbols.map(s => [s, { loading: true, error: null, data: null }])))
+    setScanTriggered(true)
+    // Fetch each in parallel, update card as each resolves
+    symbols.forEach(async (sym) => {
+      try {
+        const res  = await fetch(`/api/market-calendar?type=scanner&symbol=${encodeURIComponent(sym)}`)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'API error')
+        setScanResults(prev => ({ ...prev, [sym]: { loading: false, error: null, data } }))
+      } catch (err) {
+        setScanResults(prev => ({ ...prev, [sym]: { loading: false, error: err.message, data: null } }))
+      }
+    })
+  }, [])
+
+  const sortedScanResults = useMemo(() => {
+    return Object.entries(scanResults)
+      .map(([sym, r]) => ({ symbol: sym, ...r }))
+      .sort((a, b) => {
+        const sa = a.data?.score ?? -1
+        const sb = b.data?.score ?? -1
+        return sb - sa
+      })
+  }, [scanResults])
+
   const sortedVolatilityData = useMemo(() => {
     const { col, dir } = volSort
     return [...volatilityData].sort((a, b) => {
@@ -690,6 +732,9 @@ export default function OpenOptions() {
             </Tabs.Tab>
             <Tabs.Tab value="volatility" leftSection={<IconFlame size={16} />}>
               Volatility
+            </Tabs.Tab>
+            <Tabs.Tab value="scanner" leftSection={<IconRadar size={16} />}>
+              Scanner
             </Tabs.Tab>
           </Tabs.List>
 
@@ -917,6 +962,182 @@ export default function OpenOptions() {
                 </>
               ) : (
                 <EmptyState message="Add tickers to your watchlist or open some options positions" />
+              )}
+            </Stack>
+          </Tabs.Panel>
+
+          {/* Accumulation Scanner */}
+          <Tabs.Panel value="scanner">
+            <Stack gap="md">
+              <Card withBorder p="md">
+                <Group justify="space-between" align="flex-start">
+                  <div>
+                    <Text fw={700} size="sm" mb={2}>Accumulation Scanner</Text>
+                    <Text size="xs" c="dimmed">
+                      Scans your open options + watchlist for institutional accumulation signals:
+                      RSI, volume pattern, 52w discount, slow grind, SEC filings.
+                    </Text>
+                  </div>
+                  <Button
+                    leftSection={<IconRadar size={16} />}
+                    onClick={() => runScan(scanSymbols)}
+                    disabled={scanSymbols.length === 0}
+                    loading={Object.values(scanResults).some(r => r.loading)}
+                  >
+                    {scanTriggered ? 'Re-scan' : 'Scan'} {scanSymbols.length > 0 ? `(${scanSymbols.length})` : ''}
+                  </Button>
+                </Group>
+                {scanSymbols.length === 0 && (
+                  <Alert color="yellow" mt="sm" icon={<IconAlertCircle size={16} />}>
+                    Add tickers to your watchlist or open some options positions to scan.
+                  </Alert>
+                )}
+              </Card>
+
+              {!scanTriggered && scanSymbols.length > 0 && (
+                <Center py="xl">
+                  <Stack align="center" gap="xs">
+                    <IconRadar size={48} style={{ opacity: 0.3 }} />
+                    <Text c="dimmed" size="sm">Hit Scan to analyse {scanSymbols.length} ticker{scanSymbols.length !== 1 ? 's' : ''}</Text>
+                  </Stack>
+                </Center>
+              )}
+
+              {sortedScanResults.length > 0 && (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+                  {sortedScanResults.map(({ symbol, loading: cardLoading, error, data }) => {
+                    if (cardLoading) {
+                      return (
+                        <Card key={symbol} withBorder p="lg">
+                          <Group justify="space-between" mb="sm">
+                            <Text fw={700} size="lg">{symbol}</Text>
+                            <Skeleton height={22} width={80} radius="xl" />
+                          </Group>
+                          <Skeleton height={8} mb="md" radius="xl" />
+                          <Stack gap="xs">
+                            {[...Array(4)].map((_, i) => <Skeleton key={i} height={16} radius="sm" />)}
+                          </Stack>
+                        </Card>
+                      )
+                    }
+                    if (error) {
+                      return (
+                        <Card key={symbol} withBorder p="lg">
+                          <Text fw={700} size="lg" mb="xs">{symbol}</Text>
+                          <Text c="red" size="sm">{error}</Text>
+                        </Card>
+                      )
+                    }
+                    if (!data) return null
+                    const { score, breakdown, price, pctFromHigh, rsi, hv,
+                            high52w, consecutiveRed, insiderBuy, buyback } = data
+                    const sl = scoreLabel(score)
+                    return (
+                      <Card key={symbol} withBorder p="lg"
+                        style={score >= 75
+                          ? { borderColor: 'var(--mantine-color-green-5)' }
+                          : score >= 55
+                          ? { borderColor: 'var(--mantine-color-teal-5)' }
+                          : undefined}
+                      >
+                        <Group justify="space-between" mb="xs">
+                          <Text fw={700} size="xl">{symbol}</Text>
+                          <Badge color={sl.color} variant="light" size="lg">{score}</Badge>
+                        </Group>
+
+                        <Group gap="xs" mb="sm">
+                          <Badge color={sl.color} variant="filled" size="sm">
+                            {sl.label}
+                          </Badge>
+                          {insiderBuy && <Badge color="grape" variant="light" size="sm">Insider Buy</Badge>}
+                          {buyback    && <Badge color="violet" variant="light" size="sm">Buyback</Badge>}
+                        </Group>
+
+                        <Progress
+                          value={score}
+                          color={sl.color}
+                          size="sm"
+                          mb="sm"
+                          radius="xl"
+                        />
+
+                        <SimpleGrid cols={3} mb="md" style={{ textAlign: 'center' }}>
+                          <div>
+                            <Text size="xs" c="dimmed">Price</Text>
+                            <Text fw={600} size="sm">{price != null ? `$${price.toFixed(2)}` : '—'}</Text>
+                          </div>
+                          <div>
+                            <Text size="xs" c="dimmed">RSI</Text>
+                            <Text fw={600} size="sm"
+                              c={rsi != null && rsi < 30 ? 'green' : rsi != null && rsi < 40 ? 'yellow' : 'dimmed'}>
+                              {rsi ?? '—'}
+                            </Text>
+                          </div>
+                          <div>
+                            <Text size="xs" c="dimmed">From 52w High</Text>
+                            <Text fw={600} size="sm"
+                              c={pctFromHigh != null && pctFromHigh < -40 ? 'green' : 'dimmed'}>
+                              {pctFromHigh != null ? `${pctFromHigh}%` : '—'}
+                            </Text>
+                          </div>
+                          <div>
+                            <Text size="xs" c="dimmed">52w High</Text>
+                            <Text size="xs" c="dimmed">{high52w != null ? `$${high52w}` : '—'}</Text>
+                          </div>
+                          <div>
+                            <Text size="xs" c="dimmed">HV</Text>
+                            <Text size="xs" c={hv >= 50 ? 'green' : hv >= 35 ? 'yellow' : 'dimmed'}>{hv ?? '—'}%</Text>
+                          </div>
+                          <div>
+                            <Text size="xs" c="dimmed">Red days</Text>
+                            <Text size="xs" c={consecutiveRed >= 5 ? 'orange' : 'dimmed'}>{consecutiveRed}</Text>
+                          </div>
+                        </SimpleGrid>
+
+                        <Divider mb="sm" />
+
+                        <Stack gap={4}>
+                          {breakdown.map((b, i) => (
+                            <Group key={i} gap={6} wrap="nowrap">
+                              <Text size="xs" c={
+                                b.level === 'strong' ? 'green'
+                                : b.level === 'good'   ? 'teal'
+                                : b.level === 'mild'   ? 'yellow'
+                                : 'dimmed'
+                              }>
+                                {b.level === 'none' || b.level === 'weak' ? '·' : '✓'}
+                              </Text>
+                              <Text size="xs" c={b.pts === 0 ? 'dimmed' : undefined} style={{ flex: 1 }}>
+                                {b.label}
+                              </Text>
+                              {b.pts > 0 && (
+                                <Badge size="xs" variant="light" color={
+                                  b.level === 'strong' ? 'green'
+                                  : b.level === 'good' ? 'teal'
+                                  : 'yellow'
+                                }>+{b.pts}</Badge>
+                              )}
+                            </Group>
+                          ))}
+                        </Stack>
+
+                        <Group justify="flex-end" mt="sm">
+                          <Tooltip label="View on TradingView" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              size="xs"
+                              component="a"
+                              href={`https://www.tradingview.com/chart/?symbol=${symbol}`}
+                              target="_blank"
+                            >
+                              <IconTrendingUp size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      </Card>
+                    )
+                  })}
+                </SimpleGrid>
               )}
             </Stack>
           </Tabs.Panel>
