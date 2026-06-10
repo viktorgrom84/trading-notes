@@ -18,6 +18,20 @@ import { scoreLabel } from '../utils/scanner'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+const SCAN_CACHE_KEY   = 'scannerCache'
+const SCAN_HISTORY_KEY = 'scannerHistory'
+
+function timeAgo(isoString) {
+  if (!isoString) return null
+  const diff = Date.now() - new Date(isoString).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1)  return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
 /** Reusable sortable column header — must live at module level to avoid React remount on every parent render. */
 function SortTh({ col, label, tooltip, sort, onSort }) {
   const Icon = sort.col !== col
@@ -566,6 +580,26 @@ export default function OpenOptions() {
   // scanResults: { [symbol]: { loading, error, data } }
   const [scanResults, setScanResults]       = useState({})
   const [scanTriggered, setScanTriggered]   = useState(false)
+  const [scanLastAt, setScanLastAt]         = useState(null)
+  // history: { [symbol]: Array<{ scannedAt, score, price, rsi, hv, pcRatio }> }
+  const [scanHistory, setScanHistory]       = useState(() => {
+    try { return JSON.parse(localStorage.getItem(SCAN_HISTORY_KEY) || '{}') } catch { return {} }
+  })
+
+  // Restore last scan from cache so results survive navigation
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SCAN_CACHE_KEY)
+      if (!raw) return
+      const { scannedAt, results } = JSON.parse(raw)
+      const restored = Object.fromEntries(
+        Object.entries(results).map(([sym, data]) => [sym, { loading: false, error: null, data }])
+      )
+      setScanResults(restored)
+      setScanTriggered(true)
+      setScanLastAt(scannedAt)
+    } catch {}
+  }, [])
 
   // Symbols to scan = watchlist + open options portfolio tickers
   const scanSymbols = useMemo(() => {
@@ -577,19 +611,35 @@ export default function OpenOptions() {
 
   const runScan = useCallback(async (symbols) => {
     if (!symbols.length) return
+    const now = new Date().toISOString()
     // Reset — mark all as loading
     setScanResults(Object.fromEntries(symbols.map(s => [s, { loading: true, error: null, data: null }])))
     setScanTriggered(true)
-    // Fetch each in parallel, update card as each resolves
-    symbols.forEach(async (sym) => {
+    // Fetch all in parallel — collect results, update each card as it resolves
+    const newResults = {}
+    await Promise.all(symbols.map(async (sym) => {
       try {
         const res  = await fetch(`/api/market-calendar?type=scanner&symbol=${encodeURIComponent(sym)}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.message || 'API error')
         setScanResults(prev => ({ ...prev, [sym]: { loading: false, error: null, data } }))
+        newResults[sym] = data
       } catch (err) {
         setScanResults(prev => ({ ...prev, [sym]: { loading: false, error: err.message, data: null } }))
       }
+    }))
+    // Persist cache so results survive page navigation
+    try { localStorage.setItem(SCAN_CACHE_KEY, JSON.stringify({ scannedAt: now, results: newResults })) } catch {}
+    setScanLastAt(now)
+    // Append to per-symbol history (max 30 entries each)
+    setScanHistory(prev => {
+      const updated = { ...prev }
+      for (const [sym, data] of Object.entries(newResults)) {
+        const entry = { scannedAt: now, score: data.score, price: data.price, rsi: data.rsi, hv: data.hv, pcRatio: data.pcRatio ?? null }
+        updated[sym] = [...(updated[sym] ?? []), entry].slice(-30)
+      }
+      try { localStorage.setItem(SCAN_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+      return updated
     })
   }, [])
 
@@ -977,6 +1027,11 @@ export default function OpenOptions() {
                       Scans your open options + watchlist for institutional accumulation signals:
                       RSI, volume pattern, 52w discount, slow grind, SEC filings.
                     </Text>
+                    {scanLastAt && (
+                      <Text size="xs" c="dimmed" mt={2}>
+                        Last scanned {timeAgo(scanLastAt)}
+                      </Text>
+                    )}
                   </div>
                   <Button
                     leftSection={<IconRadar size={16} />}
@@ -984,7 +1039,7 @@ export default function OpenOptions() {
                     disabled={scanSymbols.length === 0}
                     loading={Object.values(scanResults).some(r => r.loading)}
                   >
-                    {scanTriggered ? 'Re-scan' : 'Scan'} {scanSymbols.length > 0 ? `(${scanSymbols.length})` : ''}
+                    Re-scan {scanSymbols.length > 0 ? `(${scanSymbols.length})` : ''}
                   </Button>
                 </Group>
                 {scanSymbols.length === 0 && (
@@ -1032,6 +1087,12 @@ export default function OpenOptions() {
                     const { score, breakdown, price, pctFromHigh, rsi, hv,
                             high52w, consecutiveRed, insiderBuy, buyback } = data
                     const sl = scoreLabel(score)
+                    const symHistory  = scanHistory[symbol] ?? []
+                    // Delta vs the entry before the latest one
+                    const prevEntry   = symHistory.length >= 2 ? symHistory[symHistory.length - 2] : null
+                    const delta       = prevEntry != null ? score - prevEntry.score : null
+                    // Trend: last 5 scan scores (oldest → newest)
+                    const trendScores = symHistory.slice(-5).map(e => e.score)
                     return (
                       <Card key={symbol} withBorder p="lg"
                         style={score >= 75
@@ -1042,7 +1103,18 @@ export default function OpenOptions() {
                       >
                         <Group justify="space-between" mb="xs">
                           <Text fw={700} size="xl">{symbol}</Text>
-                          <Badge color={sl.color} variant="light" size="lg">{score}</Badge>
+                          <Group gap={6}>
+                            {delta != null && (
+                              <Badge
+                                size="sm"
+                                variant="light"
+                                color={delta > 0 ? 'green' : delta < 0 ? 'red' : 'gray'}
+                              >
+                                {delta > 0 ? `+${delta}` : delta === 0 ? '=' : delta}
+                              </Badge>
+                            )}
+                            <Badge color={sl.color} variant="light" size="lg">{score}</Badge>
+                          </Group>
                         </Group>
 
                         <Group gap="xs" mb="sm">
@@ -1121,7 +1193,35 @@ export default function OpenOptions() {
                           ))}
                         </Stack>
 
-                        <Group justify="flex-end" mt="sm">
+                        {trendScores.length >= 2 && (
+                          <>
+                            <Divider mt="sm" mb="xs" />
+                            <Group justify="space-between" align="center">
+                              <Text size="xs" c="dimmed">Score trend</Text>
+                              <Group gap={4}>
+                                {trendScores.map((s, i) => {
+                                  const isLatest = i === trendScores.length - 1
+                                  const prev = i > 0 ? trendScores[i - 1] : null
+                                  const up   = prev != null && s > prev
+                                  const dn   = prev != null && s < prev
+                                  return (
+                                    <Text
+                                      key={i}
+                                      size="xs"
+                                      fw={isLatest ? 700 : 400}
+                                      c={isLatest ? sl.color : up ? 'green' : dn ? 'red' : 'dimmed'}
+                                    >
+                                      {i > 0 && <span style={{ opacity: 0.4, marginRight: 2 }}>›</span>}
+                                      {s}
+                                    </Text>
+                                  )
+                                })}
+                              </Group>
+                            </Group>
+                          </>
+                        )}
+
+                        <Group justify="flex-end" mt="xs">
                           <Tooltip label="View on TradingView" withArrow>
                             <ActionIcon
                               variant="subtle"
