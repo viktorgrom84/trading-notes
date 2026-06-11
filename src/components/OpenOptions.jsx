@@ -645,26 +645,41 @@ export default function OpenOptions() {
   const runScan = useCallback(async (symbols) => {
     if (!symbols.length) return
     const now = new Date().toISOString()
-    // Reset — mark all as loading
+    // Mark all as loading
     setScanResults(Object.fromEntries(symbols.map(s => [s, { loading: true, error: null, data: null }])))
     setScanTriggered(true)
-    // Fetch all in parallel — collect results, update each card as it resolves
+
+    // One batch request instead of N individual calls
+    let batchData = {}
+    try {
+      const res = await fetch(
+        `/api/market-calendar?type=scanner-batch&symbols=${symbols.map(encodeURIComponent).join(',')}`
+      )
+      if (res.ok) batchData = await res.json()
+      else throw new Error((await res.json()).message || 'Batch scan failed')
+    } catch (err) {
+      // If batch endpoint fails entirely, mark all as errored
+      setScanResults(Object.fromEntries(symbols.map(s => [s, { loading: false, error: err.message, data: null }])))
+      return
+    }
+
+    // Update each card from the batch response
     const newResults = {}
-    await Promise.all(symbols.map(async (sym) => {
-      try {
-        const res  = await fetch(`/api/market-calendar?type=scanner&symbol=${encodeURIComponent(sym)}`)
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.message || 'API error')
-        setScanResults(prev => ({ ...prev, [sym]: { loading: false, error: null, data } }))
-        newResults[sym] = data
-      } catch (err) {
-        setScanResults(prev => ({ ...prev, [sym]: { loading: false, error: err.message, data: null } }))
+    const nextScanResults = {}
+    for (const sym of symbols) {
+      const entry = batchData[sym]
+      if (entry?.data) {
+        nextScanResults[sym] = { loading: false, error: null, data: entry.data }
+        newResults[sym] = entry.data
+      } else {
+        nextScanResults[sym] = { loading: false, error: entry?.error ?? 'No data', data: null }
       }
-    }))
-    // Persist cache so results survive page navigation
+    }
+    setScanResults(nextScanResults)
+
+    // Persist cache + history
     try { localStorage.setItem(SCAN_CACHE_KEY, JSON.stringify({ scannedAt: now, results: newResults })) } catch {}
     setScanLastAt(now)
-    // Append to per-symbol history (max 30 entries each)
     setScanHistory(prev => {
       const updated = { ...prev }
       for (const [sym, data] of Object.entries(newResults)) {

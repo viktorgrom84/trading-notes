@@ -180,11 +180,8 @@ function _isoNDaysAgo(n) {
   const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10)
 }
 
-// Per-symbol accumulation scan: 1yr Yahoo OHLCV + SEC EDGAR Form 4 / 8-K
-async function handleScanner(req, res) {
-  const sym = (req.query.symbol || '').trim().toUpperCase()
-  if (!sym) return res.status(400).json({ message: 'symbol query param required' })
-
+// Core per-symbol scan — returns data object or throws
+async function _scanOneSym(sym) {
   const [yahooResult, insiderResult, buybackResult, optionsResult] = await Promise.allSettled([
     fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1y`,
@@ -206,25 +203,24 @@ async function handleScanner(req, res) {
 
   const yahooData = yahooResult.status === 'fulfilled' ? yahooResult.value : null
   const chart = yahooData?.chart?.result?.[0]
-  if (!chart) return res.status(404).json({ message: `No data found for ${sym}` })
+  if (!chart) throw new Error(`No data found for ${sym}`)
 
-  const meta    = chart.meta ?? {}
-  const q       = chart.indicators?.quote?.[0] ?? {}
+  const meta      = chart.meta ?? {}
+  const q         = chart.indicators?.quote?.[0] ?? {}
   const rawClose  = q.close  ?? []
   const rawHigh   = q.high   ?? []
   const rawLow    = q.low    ?? []
   const rawVolume = q.volume ?? []
 
-  // Filter out null candles (keep index alignment)
   const valid   = rawClose.map((c, i) => c != null && c > 0 ? i : -1).filter(i => i >= 0)
   const closes  = valid.map(i => rawClose[i])
   const highs   = valid.map(i => rawHigh[i]   ?? rawClose[i])
   const lows    = valid.map(i => rawLow[i]    ?? rawClose[i])
   const volumes = valid.map(i => rawVolume[i] ?? 0)
 
-  const price    = meta.regularMarketPrice ?? closes[closes.length - 1] ?? null
-  const high52w  = highs.length > 0 ? Math.max(...highs) : null
-  const low52w   = lows.length  > 0 ? Math.min(...lows.filter(l => l > 0)) : null
+  const price       = meta.regularMarketPrice ?? closes[closes.length - 1] ?? null
+  const high52w     = highs.length > 0 ? Math.max(...highs) : null
+  const low52w      = lows.length  > 0 ? Math.min(...lows.filter(l => l > 0)) : null
   const pctFromHigh = (price && high52w) ? Math.round(((price - high52w) / high52w) * 1000) / 10 : null
 
   const rsi            = _computeRSI(closes)
@@ -236,17 +232,13 @@ async function handleScanner(req, res) {
   const insiderBuy = insiderResult.status === 'fulfilled' && (insiderResult.value?.hits?.total?.value ?? 0) > 0
   const buyback    = buybackResult.status  === 'fulfilled' && (buybackResult.value?.hits?.total?.value  ?? 0) > 0
 
-  // Compute P/C ratio from Nasdaq options chain
-  let pcRatio = null
-  let totalCallVol = 0, totalPutVol = 0
+  let pcRatio = null, totalCallVol = 0, totalPutVol = 0
   if (optionsResult.status === 'fulfilled') {
     const rows = optionsResult.value?.data?.table?.rows ?? []
     for (const r of rows) {
-      if (!r.expiryDate) continue // skip group header rows
-      const cv = parseInt((r.c_Volume  || '').replace(/[^0-9]/g, '') || '0') || 0
-      const pv = parseInt((r.p_Volume  || '').replace(/[^0-9]/g, '') || '0') || 0
-      totalCallVol += cv
-      totalPutVol  += pv
+      if (!r.expiryDate) continue
+      totalCallVol += parseInt((r.c_Volume || '').replace(/[^0-9]/g, '') || '0') || 0
+      totalPutVol  += parseInt((r.p_Volume || '').replace(/[^0-9]/g, '') || '0') || 0
     }
     if (totalCallVol > 0) pcRatio = Math.round((totalPutVol / totalCallVol) * 100) / 100
   }
@@ -256,8 +248,7 @@ async function handleScanner(req, res) {
     consecutiveRed, isGrinding: grind.isGrinding, insiderBuy, buyback, pcRatio,
   })
 
-  res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800')
-  res.json({
+  return {
     symbol: sym, price,
     high52w: high52w ? Math.round(high52w * 100) / 100 : null,
     low52w:  low52w  ? Math.round(low52w  * 100) / 100 : null,
@@ -266,7 +257,40 @@ async function handleScanner(req, res) {
     insiderBuy, buyback,
     pcRatio, callVolume: totalCallVol, putVolume: totalPutVol,
     score, breakdown,
-  })
+  }
+}
+
+// Single-symbol scan (kept for backward compat / direct use)
+async function handleScanner(req, res) {
+  const sym = (req.query.symbol || '').trim().toUpperCase()
+  if (!sym) return res.status(400).json({ message: 'symbol query param required' })
+  try {
+    const data = await _scanOneSym(sym)
+    res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800')
+    res.json(data)
+  } catch (err) {
+    res.status(404).json({ message: err.message })
+  }
+}
+
+// Batch scan — all symbols in one request, processed in parallel server-side
+async function handleScannerBatch(req, res) {
+  const symbols = (req.query.symbols || '')
+    .split(',').map(s => s.trim().toUpperCase()).filter(Boolean).slice(0, 40) // hard cap at 40
+  if (!symbols.length) return res.status(400).json({ message: 'symbols query param required (comma-separated)' })
+
+  const results = await Promise.allSettled(symbols.map(sym => _scanOneSym(sym)))
+
+  const out = {}
+  for (let i = 0; i < symbols.length; i++) {
+    const r = results[i]
+    out[symbols[i]] = r.status === 'fulfilled'
+      ? { data: r.value }
+      : { error: r.reason?.message ?? 'Failed' }
+  }
+
+  res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800')
+  res.json(out)
 }
 
 // Batch-fetch current prices + 30-day historical volatility from Yahoo Finance
@@ -329,9 +353,10 @@ export default async function handler(req, res) {
 
   const { type } = req.query
   try {
-    if (type === 'ipos')    return await handleIPOs(req, res)
-    if (type === 'quotes')  return await handleQuotes(req, res)
-    if (type === 'scanner') return await handleScanner(req, res)
+    if (type === 'ipos')           return await handleIPOs(req, res)
+    if (type === 'quotes')         return await handleQuotes(req, res)
+    if (type === 'scanner')        return await handleScanner(req, res)
+    if (type === 'scanner-batch')  return await handleScannerBatch(req, res)
     return await handleEarnings(req, res) // default: earnings
   } catch (error) {
     console.error('Market calendar API error:', error)
