@@ -391,6 +391,14 @@ export default function OpenOptions() {
     } catch { return [] }
   })
   const [watchlistInput, setWatchlistInput] = useState('')
+  // scanner watchlist — independent from the volatility watchlist
+  const [scannerWatchlist, setScannerWatchlist] = useState(() => {
+    try {
+      const saved = localStorage.getItem('scannerWatchlist')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
+  const [scannerInput, setScannerInput] = useState('')
   // assignment — stored in localStorage so it survives navigation
   const [assignTarget, setAssignTarget] = useState(null)
   const [assignedIds, setAssignedIds]   = useState(() => {
@@ -601,13 +609,38 @@ export default function OpenOptions() {
     } catch {}
   }, [])
 
-  // Symbols to scan = watchlist + open options portfolio tickers
-  const scanSymbols = useMemo(() => {
-    const openSyms = trades
-      .filter(t => t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
-      .map(t => t.symbol?.trim().toUpperCase()).filter(Boolean)
-    return [...new Set([...watchlist, ...openSyms])]
-  }, [watchlist, trades])
+  const addToScannerWatchlist = useCallback((raw) => {
+    const sym = raw.trim().toUpperCase()
+    if (!sym) return
+    setScannerWatchlist(prev => {
+      if (prev.includes(sym)) return prev
+      const next = [...prev, sym]
+      try { localStorage.setItem('scannerWatchlist', JSON.stringify(next)) } catch {}
+      return next
+    })
+    setScannerInput('')
+  }, [])
+
+  const removeFromScannerWatchlist = useCallback((sym) => {
+    setScannerWatchlist(prev => {
+      const next = prev.filter(s => s !== sym)
+      try { localStorage.setItem('scannerWatchlist', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [])
+
+  // open short options auto-included; scannerWatchlist adds extras
+  const openPositionSymbols = useMemo(() =>
+    [...new Set(
+      trades
+        .filter(t => t.trade_type === 'option' && t.position_type === 'short' && !t.sell_date)
+        .map(t => t.symbol?.trim().toUpperCase()).filter(Boolean)
+    )],
+  [trades])
+
+  const scanSymbols = useMemo(() =>
+    [...new Set([...scannerWatchlist, ...openPositionSymbols])],
+  [scannerWatchlist, openPositionSymbols])
 
   const runScan = useCallback(async (symbols) => {
     if (!symbols.length) return
@@ -1024,8 +1057,7 @@ export default function OpenOptions() {
                   <div>
                     <Text fw={700} size="sm" mb={2}>Accumulation Scanner</Text>
                     <Text size="xs" c="dimmed">
-                      Scans your open options + watchlist for institutional accumulation signals:
-                      RSI, volume pattern, 52w discount, slow grind, SEC filings.
+                      RSI, volume pattern, 52w discount, slow grind, P/C ratio, SEC filings.
                     </Text>
                     {scanLastAt && (
                       <Text size="xs" c="dimmed" mt={2}>
@@ -1042,9 +1074,57 @@ export default function OpenOptions() {
                     Re-scan {scanSymbols.length > 0 ? `(${scanSymbols.length})` : ''}
                   </Button>
                 </Group>
+
+                {/* Ticker management */}
+                <Divider my="sm" />
+                <Group gap="xs" align="flex-end">
+                  <TextInput
+                    placeholder="Add ticker…"
+                    size="xs"
+                    value={scannerInput}
+                    onChange={e => setScannerInput(e.currentTarget.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter') addToScannerWatchlist(scannerInput) }}
+                    style={{ width: 120 }}
+                  />
+                  <Button size="xs" variant="light" onClick={() => addToScannerWatchlist(scannerInput)} disabled={!scannerInput.trim()}>
+                    Add
+                  </Button>
+                </Group>
+
+                {/* Watchlist chips */}
+                {scannerWatchlist.length > 0 && (
+                  <Group gap={6} mt="xs">
+                    {scannerWatchlist.map(sym => (
+                      <Badge
+                        key={sym}
+                        variant="light"
+                        color="blue"
+                        size="sm"
+                        rightSection={
+                          <ActionIcon size={12} variant="transparent" color="blue" onClick={() => removeFromScannerWatchlist(sym)}>
+                            <IconX size={10} />
+                          </ActionIcon>
+                        }
+                      >
+                        {sym}
+                      </Badge>
+                    ))}
+                  </Group>
+                )}
+
+                {/* Auto-included from open positions */}
+                {openPositionSymbols.length > 0 && (
+                  <Group gap={6} mt={scannerWatchlist.length > 0 ? 4 : 'xs'} align="center">
+                    <Text size="xs" c="dimmed">From positions:</Text>
+                    {openPositionSymbols.map(sym => (
+                      <Badge key={sym} variant="dot" color="gray" size="sm">{sym}</Badge>
+                    ))}
+                  </Group>
+                )}
+
                 {scanSymbols.length === 0 && (
                   <Alert color="yellow" mt="sm" icon={<IconAlertCircle size={16} />}>
-                    Add tickers to your watchlist or open some options positions to scan.
+                    Add tickers above or open some short options positions to scan.
                   </Alert>
                 )}
               </Card>
